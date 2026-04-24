@@ -1,0 +1,15 @@
+{
+  "name": "gigradar-gm",
+  "description": "GigRadar market research & growth insights — retro-first customer audits with peer look-alike KNN collaborative-filtering, plus Upwork job-market analysis and reply-rate benchmarks for GM, Growth, and Success Manager workflows.",
+  "author": {
+    "name": "GigRadar"
+  },
+  "keywords": [
+    "gigradar",
+    "upwork",
+    "market-research",
+    "reply-rate",
+    "success-manager",
+    "growth"
+  ]
+}

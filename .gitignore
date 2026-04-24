@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Session temp / locks that sneak in from Cowork mounts
+.~lock.*#
+*.tmp
+
+# Packaged .plugin zips (built by scripts/pack.sh, uploaded to GitHub Releases)
+dist/

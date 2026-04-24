@@ -1,0 +1,14 @@
+{
+  "name": "vadymhimself-marketplace",
+  "owner": {
+    "name": "vadymhimself",
+    "url": "https://github.com/vadymhimself"
+  },
+  "plugins": [
+    {
+      "name": "gigradar-gm",
+      "description": "GigRadar market research & growth insights — retro-first customer audits, peer look-alike KNN, and Upwork job-market reply-rate benchmarks for GM / Growth / Success Manager workflows.",
+      "source": "./plugins/gigradar-gm"
+    }
+  ]
+}
