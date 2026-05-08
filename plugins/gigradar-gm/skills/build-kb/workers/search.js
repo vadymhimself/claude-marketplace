@@ -25,7 +25,7 @@ const INDEXABLE_EXT = /\.(md|txt|json)$/i;
 const SNIPPET_LEN = 220;
 
 // Keyword scan budgets (Workers Paid CPU limit is ~30s, but we want fast).
-const KEYWORD_MAX_FILES = 250;       // upper bound on files we'll fetch in one query
+const KEYWORD_MAX_FILES = 1000;      // upper bound on files we'll fetch in one query
 const KEYWORD_MAX_HITS = 50;         // stop after this many literal matches
 
 function json(body, status = 200) {
@@ -208,29 +208,45 @@ async function handleSearch(env, url) {
   return json({ query: q, mode, hits });
 }
 
-// Real keyword search: scans actual file contents in R2 for the literal
-// (case-insensitive) substring. Skips MANIFEST.json and non-text files.
+// Walk every R2 object via cursor pagination. The Workers R2 binding's
+// `list()` returns fewer than the requested limit on larger buckets and
+// `truncated` cannot be trusted in isolation — keep paginating while a
+// cursor is returned, capped at 50 pages for safety.
+async function listAllObjects(env, prefix) {
+  const all = [];
+  let cursor;
+  for (let page = 0; page < 50; page++) {
+    const opts = { limit: 1000 };
+    if (cursor) opts.cursor = cursor;
+    if (prefix) opts.prefix = prefix;
+    const resp = await env.KB_BUCKET.list(opts);
+    if (resp.objects?.length) all.push(...resp.objects);
+    if (!resp.cursor) break;
+    cursor = resp.cursor;
+  }
+  return all;
+}
+
+// Keyword search: surface candidate paths via semantic search (cheap; single
+// embedding + Vectorize query), then verify each candidate by literal
+// substring match on the FULL file content from R2. This bounds R2 reads to
+// ~50 candidates regardless of bucket size, and survives the case where the
+// literal phrase isn't in the indexed chunk's snippet.
 async function keywordSearch(env, q, limit) {
   if (!q) return [];
-  const list = await env.KB_BUCKET.list({ limit: 1000 });
-  const targets = list.objects
-    .filter(o => INDEXABLE_EXT.test(o.key) && o.key !== "MANIFEST.json" && o.key.includes("/"))
-    .slice(0, KEYWORD_MAX_FILES);
-
   const qLower = q.toLowerCase();
-  const hits = [];
 
-  for (const o of targets) {
-    if (hits.length >= Math.max(limit, KEYWORD_MAX_HITS)) break;
-    const text = await readTextObject(env, o.key);
-    if (!text) continue;
+  // Pull a wide candidate pool — semantic ranking surfaces paraphrases too,
+  // so over-fetch and let the literal filter do the precision work.
+  const candidates = await semanticSearch(env, q, 100);
+
+  // Read each candidate's full body in parallel (bounded concurrency)
+  const checks = await Promise.all(candidates.map(async (c) => {
+    if (!c.path) return null;
+    const text = await readTextObject(env, c.path);
+    if (!text) return null;
     const lower = text.toLowerCase();
-    const idx = lower.indexOf(qLower);
-    if (idx === -1) continue;
-
-    // Score: more occurrences ranks higher; cap at 10 to keep score bounded.
-    let occurrences = 0;
-    let from = 0;
+    let from = 0, occurrences = 0;
     while (true) {
       const pos = lower.indexOf(qLower, from);
       if (pos === -1) break;
@@ -238,17 +254,18 @@ async function keywordSearch(env, q, limit) {
       from = pos + qLower.length;
       if (occurrences >= 10) break;
     }
-
-    hits.push({
-      path: o.key,
+    if (occurrences === 0) return null;
+    return {
+      path: c.path,
       snippet: snippetAround(text, q),
-      score: 0.5 + Math.min(occurrences, 10) * 0.05, // 0.55 .. 1.00
-      bundle_slug: o.key.split("/")[0],
+      score: 0.5 + Math.min(occurrences, 10) * 0.05,
+      bundle_slug: c.bundle_slug || c.path.split("/")[0],
       match_count: occurrences,
-    });
-  }
+    };
+  }));
 
-  return hits.sort((a, b) => b.score - a.score);
+  const hits = checks.filter(Boolean).sort((a, b) => b.score - a.score);
+  return hits.slice(0, Math.max(limit, KEYWORD_MAX_HITS));
 }
 
 async function semanticSearch(env, q, limit) {

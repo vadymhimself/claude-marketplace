@@ -89,9 +89,29 @@ async function indexOne(env, obj) {
   return { chunks: vectors.length };
 }
 
+// Walk the entire R2 bucket via cursor pagination. The Workers R2 binding's
+// `list()` regularly returns fewer than the requested limit on larger buckets
+// (the practical per-call ceiling is around 500 objects regardless of `limit`),
+// and `truncated` cannot be trusted in isolation — we keep paginating as long
+// as a cursor is returned, capped at 50 pages for safety.
+async function listAllObjects(env, prefix) {
+  const all = [];
+  let cursor;
+  for (let page = 0; page < 50; page++) {
+    const opts = { limit: 1000 };
+    if (cursor) opts.cursor = cursor;
+    if (prefix) opts.prefix = prefix;
+    const resp = await env.KB_BUCKET.list(opts);
+    if (resp.objects?.length) all.push(...resp.objects);
+    if (!resp.cursor) break;
+    cursor = resp.cursor;
+  }
+  return all;
+}
+
 async function reindex(env, limit) {
-  const list = await env.KB_BUCKET.list({ limit: 1000 });
-  const todo = list.objects.filter(o =>
+  const all = await listAllObjects(env);
+  const todo = all.filter(o =>
     INDEXABLE_EXT.test(o.key) && o.key !== "MANIFEST.json"
   );
 
@@ -137,8 +157,7 @@ async function reindex(env, limit) {
 }
 
 async function rebuildManifest(env) {
-  const list = await env.KB_BUCKET.list({ limit: 1000 });
-  const all = list.objects;
+  const all = await listAllObjects(env);
 
   const bundles = new Map();
   for (const obj of all) {
