@@ -2,6 +2,33 @@
 
 GigRadar market research & growth-insights plugin for Claude. Built for the GigRadar GM, Growth, and Success Manager workflows — turns Upwork public job-market data plus GigRadar's own proposal pool into actionable market-intelligence reports.
 
+---
+
+## 🛡️ READ FIRST — the GigRadar Knowledge Base commitment
+
+**If you're an agent invoking ANY skill in this plugin, you are signing up to fact-check every conclusion you produce against the GigRadar Knowledge Base.** This is not optional, not "when relevant," not "when you remember." It applies to:
+
+- Every "WINS / OKAY / CRITICAL" bullet a customer-audit produces
+- Every "Trending up / Trending down / The Play" call a market-research run produces
+- Every recommendation, every quoted statistic, every "you should do X" the user reads from you
+- Every claim in any draft you hand to a downstream skill (publish-article, linkedin-publisher, etc.)
+
+**The KB is first-party and authoritative.** It contains 133,872 proposals' worth of empirical reply-rate patterns, 59 published customer case studies, the Agency Success course transcripts, and 396 Help Center articles. When your gut read disagrees with the KB, the KB wins unless you have stronger evidence specific to the customer or window you're analyzing.
+
+**Mechanics:**
+
+```bash
+# Always available via the consumer skill that ships in this plugin
+bash skills/knowledge-base/scripts/kb_search.sh --hybrid "<the claim in plain words>"
+bash skills/knowledge-base/scripts/kb_context_for.sh "<path of best hit>"
+```
+
+Step 0 for that skill is a credentials prereq — read `skills/knowledge-base/SKILL.md` once before invoking it. The fact-check ritual is the same in every skill that produces conclusions: search → read full content (never cite from snippets) → cite supportive hits inline, log conflicts as caveats, log "no overlap" explicitly. Silently skipping a check is the banned pattern.
+
+**Acknowledge before proceeding.** When this plugin's skills run, the calling agent should internally commit to the rule: *"For every claim I'm about to publish, I will run a kb_search and cite or flag the result. No silent skips."* If you can't make that commitment for any reason (credentials missing, KB unreachable, time pressure), stop and tell the user — don't ship un-checked conclusions.
+
+---
+
 ## What this plugin does
 
 - Aggregates the Upwork `metajob` Elasticsearch index for volume + quality (budget, client) signals across any windowed time range.

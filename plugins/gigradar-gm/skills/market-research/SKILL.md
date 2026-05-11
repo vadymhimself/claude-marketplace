@@ -131,7 +131,15 @@ Then draft `upwork_<focus>_summary.md` with:
 - **Quality** read — client bankroll, payment verification, hourly vs fixed mix, median rates.
 - **Reply rate** tables — by category, highest & lowest reply-rate skills (floor: ≥500 proposals).
 - **Actionable read** — 3-5 ICP / positioning implications.
-- **Caveats** — category=null share, any known sample-size biases, snapshot timing (late dashroomUIDs → recent-month reply rate artificially low).
+- **Caveats** — category=null share, any known sample-size biases, snapshot timing (late dashroomUIDs → recent-month reply rate artificially low). **Also note any KB-check conflicts** (see below).
+
+**🛡️ KB-check every "Actionable read" bullet before publishing.** The KB carries category-specific recipes and per-segment reply-rate patterns that contextualize this month's numbers. For each bullet:
+
+```bash
+bash <plugin-dir>/skills/knowledge-base/scripts/kb_search.sh --hybrid "<the actionable claim>"
+```
+
+Likely-relevant bundles: `2026-04-26_cover-letters-bidding` (110 insights on what wins by category, time-of-day patterns, boost economics) and prior monthly `market-reports/...` runs (if the bundle exists yet — check the manifest). Cite supportive hits inline in the Actionable read; log contradictions in Caveats.
 
 Save the workbook + summary + a copy of the run's tidy CSVs to the Cowork workspace folder, then provide `computer://` links.
 
@@ -149,8 +157,8 @@ Intermediate raw JSON + tidy CSVs can stay in the session temp directory unless 
 
 ## When the user asks a narrower question
 
-- **Single-number ask** ("what's the reply rate for Legal in May?") — no need for the full workbook. Run steps 1+2 for the one window + the one dim, pull the number from the Mongo result, and answer in chat. Don't spin the whole pipeline.
-- **"Why" questions** ("why did PHP drop?") — pull prior/current buckets for that skill and inspect `doc_count`, the subcategory mix, and any visible budget shift. This is forensic work, not a report.
+- **Single-number ask** ("what's the reply rate for Legal in May?") — no need for the full workbook. Run steps 1+2 for the one window + the one dim, pull the number from the Mongo result, and answer in chat. Don't spin the whole pipeline. **The KB-check rule still applies** to any interpretation you tack onto the number — if the user asks "is that good?" or "what does it mean?", that's a conclusion that needs `kb_search`.
+- **"Why" questions** ("why did PHP drop?") — pull prior/current buckets for that skill and inspect `doc_count`, the subcategory mix, and any visible budget shift. This is forensic work, not a report. **Run a KB-check** against the proposed cause before stating it; the cover-letter-bidding bundle has historical patterns that often explain category-level shifts.
 - **Ad-hoc filtering** (e.g. only US clients) — not covered by the bundled scripts. Extend ES/Mongo queries inline; document the new pattern in `references/es-patterns.md` or `references/mongo-patterns.md`.
 
 ---
@@ -193,3 +201,15 @@ pip install --break-system-packages requests pymongo openpyxl
 - `references/output-examples.md` — a filled-out example summary + workbook table layouts
 
 Read the relevant reference(s) before invoking a script for the first time in a new dimension — they encode painful trial-and-error.
+
+---
+
+## Final sign-off ritual
+
+Before you emit `computer://` links to the workbook + summary, confirm:
+
+1. **KB pass complete on every Actionable read bullet** — each has a kb_search trail (supportive hit cited inline, contradiction logged in Caveats, or "no KB overlap" noted explicitly). No silent skips.
+2. **Step 0 of the knowledge-base skill was satisfied** — `.kb-config` exists and the smoke test passed at least once this session.
+3. **Caveats section names anything the KB flagged** — if any market trend in this report contradicts a KB insight (e.g. KB says short CLs lose on this category, market data says short-CL category is growing), the contradiction goes in Caveats with both citations.
+
+If any of those are no, fix it before delivering. The plugin's [`README.md`](../../README.md) "READ FIRST" block is the canonical source of the commitment — this skill is bound by it.

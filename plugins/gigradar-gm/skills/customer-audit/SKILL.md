@@ -276,6 +276,8 @@ Build a side-by-side **Win/Loss CL Table** in the workbook:
 
 From the table, derive concrete edit suggestions: "scanner X template opens with `<boilerplate>` on losses but with `<client-specific hook>` on wins — rewrite the template opener to always reference the JD's first-paragraph pain-point."
 
+**🛡️ KB-check before recommending an edit.** Before you tell the customer to rewrite an opener, change a phrase, kill an opener style, or adopt a recipe — search the KB. The cover-letter-bidding bundle has 110 insights including length/structure/phrasing patterns and per-category recipes. Run `bash <plugin-dir>/skills/knowledge-base/scripts/kb_search.sh --hybrid "<the edit recommendation in plain words>"`. If the KB agrees, cite the insight inline in the workbook row. If the KB disagrees, you need customer-specific evidence stronger than the KB's general finding — or downgrade the recommendation.
+
 ### Phase 5 — Auto-bidding performance (supporting aggregates, anchored on Phase 4)
 
 Secondary context, not the headline. Provides volume and economic framing for the Phase 4 win/loss narrative.
@@ -300,6 +302,17 @@ Secondary context, not the headline. Provides volume and economic framing for th
 Rankings identify which scanners to focus Phase 4 cherry-picks on and which to propose killing outright. No standalone recommendations from this phase — every recommendation must be backed by Phase 4 paired evidence.
 
 ### Phase 6 — Synthesis: three-tier executive summary + supporting sheets
+
+**🛡️ Run a KB pass before writing this sheet.** Phase 6 is the moment claims get committed to the customer-visible deliverable. For every bullet you're about to put in any tier:
+
+```bash
+bash <plugin-dir>/skills/knowledge-base/scripts/kb_search.sh --hybrid "<the claim>"
+```
+
+The KB has 110 insights on cover-letter / bidding patterns. Likely matches when a recommendation involves wording, length, opening style, niche claims, urgency, video offers, Loom mentions, follow-up timing, boost economics, time-of-day, country×CL interactions. **Three rules:**
+- KB supports → cite inline in the cell ("evidence: kb:2026-04-26_cover-letters-bidding/insights/<folder>"). This is what makes the audit defensible.
+- KB contradicts → either downgrade the recommendation or note the customer-specific evidence that overrides it ("KB says X but this team's Y scanner shows Z, evidence row N").
+- KB silent on the topic → note it in the Comments column ("no overlapping KB insight, conclusion based on this audit only").
 
 Claude writes recommendations directly into a single `.xlsx` workbook. NO separate markdown summary. Executive summary uses this **three-tier structure** on sheet 1:
 
@@ -396,3 +409,16 @@ Every audit run must consult these before drafting the workbook. They encode rul
 - **DO NOT recommend anything that isn't backed by a concrete Win/Loss CL table row or competitive look-alike example.** No recommendations from aggregate tables alone.
 - **DO NOT write per-competitor CL-pattern judgments in-line in the main conversation.** Dispatch parallel subagents via the `Agent` tool using the exact prompt template in Phase 2 Part B. Inline writing burns context, loses parallelism, and takes 5-10× longer. Only fall back to inline writing if two rounds of reworded subagent prompts still refuse.
 - **DO NOT dispatch subagents with terse command-style prompts** (e.g. "analyze this JSON and find patterns"). These trigger Usage Policy refusals. Use the full verbatim template — it frames the task as sales-copy pattern analysis of public Upwork data and provides 2 example output files for the agent to anchor on.
+- **DO NOT ship the workbook without a KB pass.** Every cell in WINS / OKAY / CRITICAL needs a KB-check trail per the front-matter rule. Silent skipping is the banned pattern; see the plugin's top-level [`README.md`](../../README.md) "READ FIRST — the GigRadar Knowledge Base commitment" block.
+
+---
+
+## Final sign-off ritual
+
+Before you emit the `computer://` link to the workbook, confirm:
+
+1. **KB pass complete** — every tier-1/2/3 bullet has a kb_search trail (cited supportive hit, logged contradiction, or "no KB overlap" caveat). No silent skips.
+2. **Step 0 of the knowledge-base skill was satisfied** — `.kb-config` exists and the smoke test passed at least once this session.
+3. **No recommendation made on aggregate-only evidence** — every recommendation cites a concrete Win/Loss CL Table row or competitive look-alike, AND a KB-check result.
+
+If any of those are no, fix it before delivering. This is what makes the audit defensible when the customer pushes back.
