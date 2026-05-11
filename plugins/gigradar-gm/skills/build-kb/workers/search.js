@@ -192,7 +192,10 @@ async function handleSearch(env, url) {
       keywordSearch(env, q, limit * 2),
       semanticSearch(env, q, limit * 2),
     ]);
-    hits = rrfFuse(kw, sem);
+    // Semantic gets weight 1.5x in RRF — a doc that's #1 in semantic but
+    // only weakly present in keyword should still surface above a doc
+    // that's #1 in keyword but only weakly relevant semantically.
+    hits = rrfFuse(sem, kw, 60, [1.5, 1.0]);
   } else {
     return json({ error: `unknown mode: ${mode}` }, 400);
   }
@@ -227,21 +230,43 @@ async function listAllObjects(env, prefix) {
   return all;
 }
 
-// Keyword search: surface candidate paths via semantic search (cheap; single
-// embedding + Vectorize query), then verify each candidate by literal
-// substring match on the FULL file content from R2. This bounds R2 reads to
-// ~50 candidates regardless of bucket size, and survives the case where the
-// literal phrase isn't in the indexed chunk's snippet.
+// Common English stopwords + question words — stripped from keyword tokens
+// because they appear in nearly every doc and don't add discrimination.
+const KEYWORD_STOPWORDS = new Set([
+  "a","an","the","of","in","on","at","to","for","by","with","and","or","but",
+  "is","are","was","were","be","been","being","have","has","had","do","does",
+  "did","will","would","could","should","may","might","must","can","cannot",
+  "no","not","yes","i","you","he","she","it","we","they","my","your","his",
+  "her","its","our","their","this","that","these","those","what","when","where",
+  "why","how","who","whom","which","there","here","then","than","so","too","as",
+  "if","while","because","since","just","also","such","very","more","most","some","any","all",
+]);
+
+// Tokenize a query: lowercase, split on non-alphanumeric, drop stopwords and
+// 1-char fragments. Numbers and identifiers are kept ("kb_123" → ["kb", "123"]).
+function tokenizeQuery(q) {
+  return q.toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length >= 2 && !KEYWORD_STOPWORDS.has(t));
+}
+
+// Keyword search: surface candidate paths via semantic search (cheap), then
+// verify each candidate by TOKEN-level substring match on the FULL file body.
+// Every meaningful query token must appear at least once (AND-of-tokens);
+// score is total token occurrences. This handles natural-language queries
+// like "connects refund Upwork rules" where the literal 4-word phrase never
+// appears anywhere but all four words appear together in the right doc.
 async function keywordSearch(env, q, limit) {
   if (!q) return [];
-  const qLower = q.toLowerCase();
+
+  const tokens = tokenizeQuery(q);
+  if (tokens.length === 0) return [];   // query had nothing but stopwords
 
   // Pull a candidate pool — semantic ranking surfaces paraphrases too,
-  // so over-fetch and let the literal filter do the precision work.
+  // so over-fetch and let the token filter do the precision work.
   const candidates = await semanticSearch(env, q, 50);
 
-  // Dedupe candidates by path before doing R2 reads (semantic results can
-  // repeat the same path across multiple chunks of the same file).
+  // Dedupe candidates by path (semantic returns multiple chunks per file).
   const seenPaths = new Set();
   const uniqueCandidates = [];
   for (const c of candidates) {
@@ -250,38 +275,64 @@ async function keywordSearch(env, q, limit) {
     uniqueCandidates.push(c);
   }
 
-  // Per-read wrapper that NEVER throws — a single R2 failure must not
-  // poison the whole Promise.all batch (was causing CF 1101 worker errors).
+  // Per-read wrapper that NEVER throws — one R2 failure must not poison
+  // the whole batch (was causing CF 1101 worker errors before this guard).
   async function checkOne(c) {
     try {
       const text = await readTextObject(env, c.path);
       if (!text) return null;
       const lower = text.toLowerCase();
-      let from = 0, occurrences = 0;
-      while (true) {
-        const pos = lower.indexOf(qLower, from);
-        if (pos === -1) break;
-        occurrences++;
-        from = pos + qLower.length;
-        if (occurrences >= 10) break;
-      }
-      if (occurrences === 0) return null;
+
+      // Count occurrences of EACH token (capped per-token to keep score bounded).
+      const tokenHits = tokens.map(tok => {
+        let from = 0, n = 0;
+        while (true) {
+          const pos = lower.indexOf(tok, from);
+          if (pos === -1) break;
+          n++;
+          from = pos + tok.length;
+          if (n >= 10) break;   // per-token cap
+        }
+        return n;
+      });
+
+      // Coverage threshold: require at least 60% of meaningful query tokens
+      // to appear. Strict AND would miss strong semantic matches that paraphrase
+      // one of the query words (e.g. a doc about "connects refund Upwork rules"
+      // that says "policy" instead of "rules"). For 1-2 token queries, require
+      // every token. For 3+, allow one to be missing.
+      const matchedTokens = tokenHits.filter(n => n > 0).length;
+      const minRequired = tokens.length <= 2 ? tokens.length : Math.ceil(tokens.length * 0.6);
+      if (matchedTokens < minRequired) return null;
+
+      const totalHits = tokenHits.reduce((sum, n) => sum + n, 0);
+      const coverage = matchedTokens / tokens.length;
+      const density  = Math.min(totalHits, 30) / 30;   // 0..1
+
+      // Snippet anchored on the rarest-but-present token (most distinctive).
+      const presentHits = tokenHits.map((n, i) => ({ tok: tokens[i], n })).filter(x => x.n > 0);
+      const anchorTok = presentHits.sort((a, b) => a.n - b.n)[0]?.tok || tokens[0];
+      const snippet = snippetAround(text, anchorTok);
+
       return {
         path: c.path,
-        snippet: snippetAround(text, q),
-        score: 0.5 + Math.min(occurrences, 10) * 0.05,
+        snippet,
+        // Score: coverage dominates (a doc that has all tokens beats a doc
+        // that has 3/4 with higher density), but density still differentiates
+        // within a coverage tier.
+        score: 0.4 + (coverage * 0.4) + (density * 0.2),
         bundle_slug: c.bundle_slug || c.path.split("/")[0],
-        match_count: occurrences,
+        match_count: totalHits,
+        coverage,                     // fraction of query tokens present
+        token_matches: tokenHits,     // per-token diagnostic
       };
     } catch (e) {
-      // Don't let one bad read kill the whole search.
       console.error(`keyword check failed for ${c?.path}:`, e?.message);
       return null;
     }
   }
 
-  // Read in small parallel chunks rather than 50-at-once to stay friendly
-  // to R2 connection limits.
+  // Read in small parallel chunks (friendly to R2 connection limits).
   const CHUNK = 10;
   const hits = [];
   for (let i = 0; i < uniqueCandidates.length; i += CHUNK) {
@@ -298,24 +349,46 @@ async function semanticSearch(env, q, limit) {
   const emb = await env.AI.run(EMBED_MODEL, { text: [q] });
   const vector = emb.data[0];
   const result = await env.VECTOR.query(vector, {
-    topK: limit,
+    topK: Math.min(limit, 50),
     returnMetadata: "all",
   });
-  return (result.matches || []).map(m => ({
-    path: m.metadata?.path,
-    snippet: m.metadata?.snippet || "",
-    score: m.score,
-    bundle_slug: m.metadata?.bundle_slug,
-  }));
+
+  // Dedupe by path, keep the highest-scoring chunk per file. Without dedupe,
+  // hybrid RRF over-rewards files that have many matched chunks (was causing
+  // the wrong article to surface at #1 even when a single-chunk file was the
+  // clear best semantic match).
+  const matches = result.matches || [];
+  const best = new Map();
+  for (const m of matches) {
+    const path = m.metadata && m.metadata.path;
+    if (!path) continue;
+    const prev = best.get(path);
+    if (!prev || m.score > prev.score) {
+      best.set(path, m);
+    }
+  }
+
+  return [...best.values()]
+    .sort((a, b) => b.score - a.score)
+    .map(m => ({
+      path: m.metadata.path,
+      snippet: (m.metadata && m.metadata.snippet) || "",
+      score: m.score,
+      bundle_slug: m.metadata && m.metadata.bundle_slug,
+    }));
 }
 
 // Reciprocal Rank Fusion across two ranked lists.
-function rrfFuse(a, b, k = 60) {
+// Reciprocal Rank Fusion. `weights` lets callers weight one list higher
+// than the other (e.g. semantic 1.5x over keyword for natural-language queries).
+function rrfFuse(a, b, k = 60, weights = [1.0, 1.0]) {
   const map = new Map();
-  for (const list of [a, b]) {
-    list.forEach((hit, i) => {
+  const lists = [a, b];
+  for (let li = 0; li < lists.length; li++) {
+    const w = weights[li] ?? 1.0;
+    lists[li].forEach((hit, i) => {
       const prev = map.get(hit.path) || { ...hit, score: 0 };
-      prev.score += 1 / (k + i + 1);
+      prev.score += w / (k + i + 1);
       map.set(hit.path, prev);
     });
   }
