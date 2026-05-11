@@ -236,35 +236,61 @@ async function keywordSearch(env, q, limit) {
   if (!q) return [];
   const qLower = q.toLowerCase();
 
-  // Pull a wide candidate pool — semantic ranking surfaces paraphrases too,
+  // Pull a candidate pool — semantic ranking surfaces paraphrases too,
   // so over-fetch and let the literal filter do the precision work.
-  const candidates = await semanticSearch(env, q, 100);
+  const candidates = await semanticSearch(env, q, 50);
 
-  // Read each candidate's full body in parallel (bounded concurrency)
-  const checks = await Promise.all(candidates.map(async (c) => {
-    if (!c.path) return null;
-    const text = await readTextObject(env, c.path);
-    if (!text) return null;
-    const lower = text.toLowerCase();
-    let from = 0, occurrences = 0;
-    while (true) {
-      const pos = lower.indexOf(qLower, from);
-      if (pos === -1) break;
-      occurrences++;
-      from = pos + qLower.length;
-      if (occurrences >= 10) break;
+  // Dedupe candidates by path before doing R2 reads (semantic results can
+  // repeat the same path across multiple chunks of the same file).
+  const seenPaths = new Set();
+  const uniqueCandidates = [];
+  for (const c of candidates) {
+    if (!c.path || seenPaths.has(c.path)) continue;
+    seenPaths.add(c.path);
+    uniqueCandidates.push(c);
+  }
+
+  // Per-read wrapper that NEVER throws — a single R2 failure must not
+  // poison the whole Promise.all batch (was causing CF 1101 worker errors).
+  async function checkOne(c) {
+    try {
+      const text = await readTextObject(env, c.path);
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      let from = 0, occurrences = 0;
+      while (true) {
+        const pos = lower.indexOf(qLower, from);
+        if (pos === -1) break;
+        occurrences++;
+        from = pos + qLower.length;
+        if (occurrences >= 10) break;
+      }
+      if (occurrences === 0) return null;
+      return {
+        path: c.path,
+        snippet: snippetAround(text, q),
+        score: 0.5 + Math.min(occurrences, 10) * 0.05,
+        bundle_slug: c.bundle_slug || c.path.split("/")[0],
+        match_count: occurrences,
+      };
+    } catch (e) {
+      // Don't let one bad read kill the whole search.
+      console.error(`keyword check failed for ${c?.path}:`, e?.message);
+      return null;
     }
-    if (occurrences === 0) return null;
-    return {
-      path: c.path,
-      snippet: snippetAround(text, q),
-      score: 0.5 + Math.min(occurrences, 10) * 0.05,
-      bundle_slug: c.bundle_slug || c.path.split("/")[0],
-      match_count: occurrences,
-    };
-  }));
+  }
 
-  const hits = checks.filter(Boolean).sort((a, b) => b.score - a.score);
+  // Read in small parallel chunks rather than 50-at-once to stay friendly
+  // to R2 connection limits.
+  const CHUNK = 10;
+  const hits = [];
+  for (let i = 0; i < uniqueCandidates.length; i += CHUNK) {
+    const slice = uniqueCandidates.slice(i, i + CHUNK);
+    const results = await Promise.all(slice.map(checkOne));
+    for (const r of results) if (r) hits.push(r);
+  }
+
+  hits.sort((a, b) => b.score - a.score);
   return hits.slice(0, Math.max(limit, KEYWORD_MAX_HITS));
 }
 
