@@ -13,8 +13,9 @@ from bson import ObjectId
 from datetime import datetime, timezone
 
 MONGO_URI = os.environ["MONGO_URI"]  # request read-only creds from admin; see plugin README
-TEAM_OID = ObjectId("679a215568faa05722aabb93")
-OUT = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase3_chats.json"
+TEAM_OID = ObjectId(os.environ.get("TEAM_OID") or "679a215568faa05722aabb93")
+OUT_DIR = os.environ.get("AUDIT_WORK_DIR") or os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(OUT_DIR, "phase3_chats.json")
 
 FOCUS_START = datetime(2026, 3, 23, tzinfo=timezone.utc)
 FOCUS_END = datetime(2026, 4, 22, tzinfo=timezone.utc)
@@ -22,15 +23,22 @@ FOCUS_END = datetime(2026, 4, 22, tzinfo=timezone.utc)
 c = MongoClient(MONGO_URI, serverSelectionTimeoutMS=60000)
 db = c["gigradar-dev"]
 
-# Playbook warns: probe leads.chats coverage first
-leads_db = c["gigradar-dev"]  # same DB in practice; adjust if leads is separate
-# The actual collection may be in a different DB; try both
+# Playbook warns: probe leads.chats coverage first.
+# Some teams store gigradarTeamId as string on leads.chats; others as ObjectId.
+# Probe both shapes with find_one (cheap), then fall back to count_documents.
+leads_db = c["gigradar-dev"]  # same DB; adjust if leads is separate
 probe_coverage = 0
+team_filter_for_chats = None
 try:
-    probe_coverage = db.get_collection("leads.chats").count_documents({"gigradarTeamId": TEAM_OID}, limit=10)
-except Exception:
-    pass
-print(f"leads.chats coverage for Ubiquify (probe): {probe_coverage}")
+    if db.get_collection("leads.chats").find_one({"gigradarTeamId": TEAM_OID}, {"_id": 1}):
+        team_filter_for_chats = {"gigradarTeamId": TEAM_OID}
+        probe_coverage = db.get_collection("leads.chats").count_documents(team_filter_for_chats, limit=200)
+    elif db.get_collection("leads.chats").find_one({"gigradarTeamId": str(TEAM_OID)}, {"_id": 1}):
+        team_filter_for_chats = {"gigradarTeamId": str(TEAM_OID)}
+        probe_coverage = db.get_collection("leads.chats").count_documents(team_filter_for_chats, limit=200)
+except Exception as _e:
+    print(f"  probe error: {_e}")
+print(f"leads.chats coverage for this team (probe): {probe_coverage} (shape: {'ObjectId' if team_filter_for_chats and isinstance(team_filter_for_chats.get('gigradarTeamId'), ObjectId) else 'string' if team_filter_for_chats else 'none'})")
 
 # Also try the dedicated leads DB
 leads_db_alt = c["leads"] if "leads" in c.list_database_names() else None
@@ -45,11 +53,11 @@ cc = db.proposals.count_documents({"_gigradarTeamOid": TEAM_OID, "meta.chat.chat
 print(f"Proposals with chat.chatId: {cc}")
 
 if probe_coverage == 0 and alt == 0:
-    print("leads.chats is empty for this team — chat-transcript reading SKIPPED.")
+    print(f"leads.chats is empty for this team — chat-transcript reading SKIPPED.")
     with open(OUT, "w") as f:
         json.dump({
             "status": "skipped",
-            "reason": "leads.chats dry for Ubiquify — chat-sync not populated",
+            "reason": "leads.chats not populated for this team — chat-sync may be off or this team predates sync",
             "proposals_with_chatId": cc,
             "caveat": "CL-to-interview conversion can't be diagnosed from transcripts; rely on reply-rate only",
         }, f, indent=2, default=str)
@@ -84,6 +92,8 @@ for p in hits:
     room = chats_coll.find_one({"upworkRoomUid": chatId}, {"upworkRoomUid": 1, "jobDetails": 1, "startedAt": 1})
     if not room:
         continue
+    # NOTE: leads.chats.messages.gigradarTeamId is unset on many teams; do NOT filter by team here.
+    # The upworkRoomUid alone is sufficient since the room has the team scoping.
     msgs = list(msgs_coll.find({"upworkRoomUid": chatId}, {
         "text": 1, "author.type": 1, "author.name": 1, "createdAt": 1, "type": 1
     }).sort("createdAt", 1).limit(12))

@@ -1,5 +1,5 @@
 """
-Phase 6 — Build dark-mode xlsx workbook for Ubiquify audit.
+Phase 6 — Build dark-mode xlsx workbook for a customer audit (subject-team-agnostic).
 
 Sheets:
  1. Executive Summary (three-tier WINS / OKAY / CRITICAL)
@@ -98,8 +98,10 @@ thin = Side(style="thin", color=FG_DIM)
 border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
 
 # ---- load phase data ----
+import os as _os_ld
+WORK_DIR = _os_ld.environ.get("AUDIT_WORK_DIR") or _os_ld.path.dirname(_os_ld.path.abspath(__file__))
 def ld(name):
-    with open(f"/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/{name}") as f:
+    with open(_os_ld.path.join(WORK_DIR, name)) as f:
         return json.load(f)
 
 phase1 = ld("phase1_retro_v2.json")
@@ -110,8 +112,8 @@ phase3 = ld("phase3_chats.json")
 phase4 = ld("phase4_winloss.json")
 phase5 = ld("phase5_aggregates.json")
 
-UB_HL_BG = "203040"  # Ubiquify highlight row background
-UB_HL_FG = "79C0FF"  # Ubiquify highlight text
+UB_HL_BG = "203040"  # subject-team highlight row background (legacy name UB_HL_*)
+UB_HL_FG = "79C0FF"  # subject-team highlight text
 
 
 wb = Workbook()
@@ -147,11 +149,15 @@ s1.title = "Executive Summary"
 darken_sheet(s1)
 
 # Title
-s1["A1"] = "GigRadar Audit — Ubiquify Digital"
+_team_name = (phase1.get("team") or {}).get("name") or "(team)"
+s1["A1"] = f"GigRadar Audit — {_team_name}"
 s1["A1"].font = Font(name=FONT, size=22, bold=True, color=FG)
 s1["A1"].fill = fill(BG)
 s1.row_dimensions[1].height = 32
-s1["A2"] = f"Focus window: 2026-03-23 to 2026-04-22 (30 days)   •   Team: daniyal@ubiquifydigital.com"
+_fw_start = (phase1.get("focus_window") or {}).get("start", "")[:10]
+_fw_end   = (phase1.get("focus_window") or {}).get("end",   "")[:10]
+_team_id  = (phase1.get("team") or {}).get("_id", "")
+s1["A2"] = f"Focus window: {_fw_start} to {_fw_end}   •   Team: {_team_name}  (_id {_team_id})"
 s1["A2"].font = fg(FG_DIM)
 s1["A3"] = "Methodology v2 — reply rate + $/reply as north-star metrics. Hire rate diagnostic only (off-Upwork closes undercount wins)."
 s1["A3"].font = fg(FG_DIM)
@@ -170,7 +176,9 @@ s1.cell(row=row, column=1).fill = fill(HEADER_BG)
 fill_row_bg(s1, row, 1, 7, HEADER_BG)
 row += 1
 
-headline_headers = ["Metric", "Value", "Prior Window", "Cohort Median (N=157 peers)", "Percentile (inferred peers)", "Percentile (all 210 teams ≥100 sent)", f"Percentile (KNN territorial N={knn['qualified_count']})"]
+_inf_n = (inf.get("reply_rate_stats") or {}).get("n") or inf.get("qualified_count") or "?"
+_brd_n = (brd.get("reply_rate_stats") or {}).get("n") or brd.get("qualified_count") or "?"
+headline_headers = ["Metric", "Value", "Prior Window", f"Cohort Median (N={_inf_n} peers)", "Percentile (inferred peers)", f"Percentile (all {_brd_n} teams ≥100 sent)", f"Percentile (KNN territorial N={knn['qualified_count']})"]
 for i, h in enumerate(headline_headers, 1):
     c = s1.cell(row=row, column=i, value=h)
     c.font = fg_bold(FG_DIM)
@@ -189,7 +197,7 @@ hl_rows = [
         f"P{brd['subject_position']['cost_per_reply_percentile_lower_better']:.0f}",
         f"P{knn['subject_position']['cost_per_reply_percentile_lower_better']:.0f}"),
     ("Hire rate (diagnostic)", f"{fw['hire_rate']*100:.2f}%", f"{pw['hire_rate']*100:.2f}%",
-        f"{inf['hire_rate_among_hiring_stats']['median']*100:.2f}% (among N=46 hiring peers)",
+        f"{inf['hire_rate_among_hiring_stats']['median']*100:.2f}% (among N={inf['hire_rate_among_hiring_stats'].get('n_teams_with_hire') or '?'} hiring peers)",
         f"P{inf['subject_position'].get('hire_rate_percentile_among_hiring', 0):.0f}",
         f"P{brd['subject_position'].get('hire_rate_percentile_among_hiring', 0):.0f}",
         f"P{knn['subject_position'].get('hire_rate_percentile_among_hiring', 0):.0f}"),
@@ -235,9 +243,19 @@ split_rows = [
     ("All-time manual-outbound", ats["manual"]["sent"], ats["manual"]["replied"], ats["manual"]["hired"],
      f"{ats['manual']['reply_rate']*100:.2f}%",
      f"{ats['manual']['hire_rate']*100:.2f}%"),
-    ("All-time manual-INVITES (separate channel)", 29, 29, 3,
-     "100.00%", "10.34%"),
 ]
+# All-time manual-INVITES — pull from phase1.all_time.manual_invite when v2 retro emits it; "—" fallback otherwise
+_inv = ((phase1.get("all_time") or {}).get("manual_invite")
+        or (phase1.get("all_time") or {}).get("invite")
+        or {})
+split_rows.append((
+    "All-time manual-INVITES (separate channel)",
+    _inv.get("sent", "—"),
+    _inv.get("replied", "—"),
+    _inv.get("hired", "—"),
+    f"{(_inv.get('reply_rate') or 0)*100:.2f}%" if _inv.get("reply_rate") is not None else "—",
+    f"{(_inv.get('hire_rate') or 0)*100:.2f}%" if _inv.get("hire_rate") is not None else "—",
+))
 for r in split_rows:
     for i, v in enumerate(r, 1):
         c = s1.cell(row=row, column=i, value=v)
@@ -246,8 +264,15 @@ for r in split_rows:
     row += 1
 
 row += 1
+_auto_rr = (ats.get("auto_bidder") or {}).get("reply_rate") or 0
+_man_rr  = (ats.get("manual") or {}).get("reply_rate") or 0
+_inv_rr  = _inv.get("reply_rate") or 0
+_inv_hr  = _inv.get("hire_rate") or 0
 s1.cell(row=row, column=1,
-        value="Note: apples-to-apples, auto-outbound (8.58% RR all-time) and manual-outbound (8.57% RR all-time) reply rates are effectively IDENTICAL. Manual invites are a separate channel (100% RR by construction) and drive 12% of hires at 0.3% of volume."
+        value=(f"Note: apples-to-apples — auto-outbound ({_auto_rr*100:.2f}% RR all-time) "
+               f"and manual-outbound ({_man_rr*100:.2f}% RR all-time) are the cohorts to compare. "
+               f"Manual invites are a separate channel (RR {_inv_rr*100:.2f}%, hire rate {_inv_hr*100:.2f}%) "
+               f"— do not blend.")
 ).font = Font(name=FONT, size=9, italic=True, color=FG_DIM)
 s1.cell(row=row, column=1).alignment = Alignment(wrap_text=True)
 s1.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
@@ -279,7 +304,7 @@ wins = [
      "Continue current experimentation cadence (new algo + prompt version rollouts).",
      "Phase 1 Retro"),
     ("Invite channel is a hidden gold mine",
-     "29 invite proposals in all-time → 100% reply rate → 3 hires (12% hire rate on invites vs 0.25% on outbound). This is not a scanner problem, it's a channel-discovery finding.",
+     f"{_inv.get('sent','—')} invite proposals in all-time → {(_inv.get('reply_rate') or 0)*100:.1f}% reply rate → {_inv.get('hired','—')} hires ({(_inv.get('hire_rate') or 0)*100:.2f}% hire rate on invites vs {((ats.get('auto_bidder') or {}).get('hire_rate') or 0)*100:.3f}% on outbound). This is not a scanner problem, it's a channel-discovery finding.",
      "Ensure invite notifications go to the freelancer fast (sub-hour). Consider dedicated invite-reply template.",
      "Phase 1 Retro invite split"),
 ]
@@ -363,10 +388,10 @@ crits = [
      "Diff the AM-03-C vs AM-05-C boolean queries. AM-05-C is working — port its recent changes to AM-03-C.",
      "Phase 5"),
     ("Team serviceNames + industry fields empty on team document",
-     "Ubiquify has no serviceNames[] or industry populated, which breaks GigRadar's built-in cohort benchmarking for the team. Dashboard benchmarks will silently skip.",
+     "(subject team has no serviceNames[] or industry populated), which breaks GigRadar's built-in cohort benchmarking for the team. Dashboard benchmarks will silently skip.",
      "Populate teams.serviceNames = ['Web/Mobile/SW Dev','AI/ML'] and teams.industry so internal benchmark widgets work.",
      "Phase 1 / Phase 2A"),
-    ("Leads chat-sync is not running for Ubiquify (759 proposals with chatId, 0 leads.chats docs)",
+    ("Leads chat-sync may not be running for this team — see Phase 3 Chat Excerpts sheet for coverage",
      "Cannot diagnose CL→interview→hire funnel because transcripts aren't synced. Missing signal for audit, account health, and churn prediction.",
      "Run the chat-sync backfill for team 679a215568faa05722aabb93. This is an internal GigRadar engineering ticket.",
      "Phase 3 (skipped)"),
@@ -395,7 +420,7 @@ s1.cell(row=row, column=1).fill = fill(HEADER_BG)
 fill_row_bg(s1, row, 1, 6, HEADER_BG)
 row += 1
 s1.cell(row=row, column=1,
-        value="What winning competitors do on the SAME job type that Ubiquify does NOT. Full detail: Competitive Deep-Dive sheet · Full playbook: COMPETITIVE_PLAYBOOK.md (workspace root).").font = fg(FG_DIM)
+        value=f"What winning competitors do on the SAME job type that {_team_name} does NOT. Full detail: Competitive Deep-Dive sheet · Full playbook: COMPETITIVE_PLAYBOOK.md (workspace root).").font = fg(FG_DIM)
 s1.cell(row=row, column=1).alignment = Alignment(wrap_text=True)
 s1.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
 row += 1
@@ -509,7 +534,7 @@ set_col_widths(s1, [32, 14, 14, 22, 24, 24, 24])
 s2 = wb.create_sheet("Retro Evidence")
 darken_sheet(s2)
 
-s2["A1"] = "Retro Evidence — Ubiquify all-time (pre-GigRadar + GigRadar-era hires)"
+s2["A1"] = f"Retro Evidence — {_team_name} all-time (pre-GigRadar + GigRadar-era hires)"
 s2["A1"].font = fg_bold(FG, 16)
 
 row = 3
@@ -563,11 +588,11 @@ set_col_widths(s2, [14, 42, 10, 24, 14, 10, 10, 70])
 
 
 # =========================================================================
-# Sheet 3 — Competitive Deep-Dive (v3: side-by-side competitor | Ubiquify analogue)
+# Sheet 3 — Competitive Deep-Dive (v3: side-by-side competitor | subject-team analogue)
 # Layout (14 cols, A..N):
 #   LEFT pane  (A..F)  = competitor card
 #   G                   = gutter
-#   RIGHT pane (H..M)   = Ubiquify WIN or LOSS analogue
+#   RIGHT pane (H..M)   = subject team WIN or LOSS analogue
 #   N                   = AI reasoning column (paragraphs)
 # =========================================================================
 s3 = wb.create_sheet("Competitive Deep-Dive")
@@ -607,11 +632,11 @@ def v_align_top(ws, r):
         cell.alignment = Alignment(
             horizontal=prev.horizontal, vertical="top", wrap_text=prev.wrap_text)
 
-s3["A1"] = "Competitive Deep-Dive — Top-5 Competitor Wins vs. Ubiquify Analogues"
+s3["A1"] = f"Competitive Deep-Dive — Top-5 Competitor Wins vs. {_team_name} Analogues"
 s3["A1"].font = fg_bold(FG, 16)
-s3["A2"] = ("Left pane: each of the top-10 KNN competitors' 5 most-recent wins in Ubiquify's job neighborhoods. "
-            "Right pane: Ubiquify's best title-matched WIN and LOSS for each. Column N: pattern observations per pair. "
-            "Row colors: green = Ubiquify WIN analogue · red = Ubiquify LOSS analogue · gold = GigRadar template.")
+s3["A2"] = (f"Left pane: each of the top-10 KNN competitors' 5 most-recent wins in {_team_name}'s job neighborhoods. "
+            f"Right pane: {_team_name}'s best title-matched WIN and LOSS for each. Column N: pattern observations per pair. "
+            "Row colors: green = subject WIN analogue · red = subject LOSS analogue · gold = GigRadar template.")
 s3["A2"].font = fg(FG_DIM)
 s3["A2"].alignment = Alignment(wrap_text=True, vertical="top")
 s3.merge_cells("A2:N2")
@@ -619,16 +644,16 @@ s3.row_dimensions[2].height = 48
 
 row = 4
 
-# ---- Cohort compare (4 rows — includes Ubiquify highlighted) ----
+# ---- Cohort compare (4 rows — includes subject-team highlighted) ----
 s3.cell(row=row, column=1,
-    value="Cohort Compare (focus 2026-03-23..2026-04-22, ≥100 sent for 2a cohorts / ≥50 for KNN)"
+    value=f"Cohort Compare (focus {_fw_start}..{_fw_end}, ≥100 sent for 2a cohorts / ≥50 for KNN)"
 ).font = fg_bold(FG, 13)
 fill_row_bg(s3, row, 1, 14, HEADER_BG)
 s3.merge_cells(start_row=row, start_column=1, end_row=row, end_column=14)
 row += 1
 
 hdrs = ["Cohort", "N Teams", "Reply Rate (p25 / med / p75 / p90)",
-        "$/Reply (p25 / med / p75 / p90)", "Ubiquify RR / $/Reply",
+        "$/Reply (p25 / med / p75 / p90)", "Subject RR / $/Reply",
         "Percentile Rank"]
 for i, h in enumerate(hdrs, 1):
     c = s3.cell(row=row, column=i, value=h)
@@ -641,7 +666,7 @@ row += 1
 cohort_rows = [
     ("Inferred peers (scanner-keyword match)", phase2a["inferred_cohort"]),
     ("Broad platform (any ≥100 sent)", phase2a["broad_cohort"]),
-    ("KNN-neighbor jobs (Ubiquify territorial peers)", phase2b["knn_cohort_summary"]),
+    ("KNN-neighbor jobs (subject team territorial peers)", phase2b["knn_cohort_summary"]),
 ]
 # Geo cohort — added v0.4: anchors a country-matched cohort off the subject
 # agency's primary location. Useful because price expectations + buyer-side
@@ -671,7 +696,7 @@ for label, d in cohort_rows:
     s3.row_dimensions[row].height = 30
     row += 1
 
-# ---- Ubiquify self-row (highlighted) ----
+# ---- subject-team self-row (highlighted) ----
 ub_fw = phase1["focus_window"]["auto_bidder"]
 ub_rr = ub_fw["reply_rate"]
 ub_cpr = ub_fw["cost_per_reply_usd"]
@@ -680,7 +705,7 @@ knn_sp = phase2b["knn_cohort_summary"]["subject_position"]
 inf_sp = phase2a["inferred_cohort"]["subject_position"]
 brd_sp = phase2a["broad_cohort"]["subject_position"]
 geo_sp = (phase2a.get("geo_cohort") or {}).get("subject_position") or {}
-s3.cell(row=row, column=1, value="◆ UBIQUIFY (you) — subject team").font = fg_bold(UB_HL_FG)
+s3.cell(row=row, column=1, value=f"◆ {_team_name.upper()} (you) — subject team").font = fg_bold(UB_HL_FG)
 s3.cell(row=row, column=2, value=1).font = fg_bold(UB_HL_FG)
 s3.cell(row=row, column=3, value=f"{ub_rr*100:.2f}% — sent {ub_fw['sent']}, replies {ub_fw['replied']}").font = fg(UB_HL_FG)
 s3.cell(row=row, column=4, value=f"${ub_cpr:.2f} — connects ${ub_fw['connects_spend_usd']:.0f}").font = fg(UB_HL_FG)
@@ -727,13 +752,13 @@ competitors = sorted(competitors, key=lambda c: -_comp_display_score(c))
 # =========================================================================
 # Profile Side-by-Side block — NEW (v0.4)
 # For each top-10 competitor: compare their agency + primary freelancer
-# profile with Ubiquify's. All fields the reader needs to see *who is winning
+# profile with the subject team's. All fields the reader needs to see *who is winning
 # and why their positioning works* — avatars (embedded as images), rates,
 # earnings, JSS, skills (top 10), services, work history, portfolios.
 # Sorted in the same order as the per-competitor cards below (by reply rate).
 # =========================================================================
 s3.cell(row=row, column=1,
-    value="Freelancer & Agency Profile Comparison — Competitor vs Ubiquify  (top-10 ranked by focus-window reply rate)"
+    value=f"Freelancer & Agency Profile Comparison — Competitor vs {_team_name}  (top-10 ranked by focus-window reply rate)"
 ).font = fg_bold(FG, 13)
 for cc in range(1, 15):
     s3.cell(row=row, column=cc).fill = fill(HEADER_BG)
@@ -748,7 +773,7 @@ s3.merge_cells(start_row=row, start_column=1, end_row=row, end_column=14)
 s3.row_dimensions[row].height = 32
 row += 1
 
-# Ubiquify subject profile (lifted once — used as the right-pane reference)
+# Subject-team profile (lifted once — used as the right-pane reference)
 subj_profile = phase2b.get("subject_profile") or {}
 subj_agency = subj_profile.get("agency") or {}
 subj_fl_top = subj_profile.get("main_freelancer") or {}
@@ -978,10 +1003,10 @@ for prof_idx, comp in enumerate(competitors[:10], 1):
     s3.row_dimensions[row].height = 24
     row += 1
 
-    # Render two profile cards side by side: LEFT = competitor, RIGHT = Ubiquify
+    # Render two profile cards side by side: LEFT = competitor, RIGHT = subject team
     block_start = row
     left_end = render_profile_card(row, 1, 6, "COMPETITOR", LINK_FG, comp)
-    right_end = render_profile_card(row, 8, 12, "UBIQUIFY", UB_HL_FG,
+    right_end = render_profile_card(row, 8, 12, _team_name.upper()[:14], UB_HL_FG,
                                      {"agency": subj_agency, "main_freelancer": subj_fl_top})
     # Align panes (pad shorter with empty rows)
     final_row = max(left_end, right_end)
@@ -1015,7 +1040,7 @@ for prof_idx, comp in enumerate(competitors[:10], 1):
 
 # ---- Section header: bid-by-bid cards below ----
 s3.cell(row=row, column=1,
-    value="Top-10 Direct Competitors × Top-5 Wins — Side-by-Side with Ubiquify's Matched Win / Loss"
+    value=f"Top-10 Direct Competitors × Top-5 Wins — Side-by-Side with {_team_name}'s Matched Win / Loss"
 ).font = fg_bold(FG, 13)
 for cc in range(1, 15):
     s3.cell(row=row, column=cc).fill = fill(HEADER_BG)
@@ -1078,7 +1103,7 @@ for idx, comp in enumerate(competitors, 1):
     _cpr_txt = f"${_cpr:.0f}/reply" if isinstance(_cpr, (int, float)) else "—"
     hdr_text = (f"#{idx}  ·  {team_name}  ·  {_rr_txt}  ·  {_cpr_txt}  ·  "
                 f"{fm.get('sent') or '—'} sent  ·  {fm.get('hired') or 0} hires  "
-                f"·  {wins} win(s) in Ubiquify neighborhoods  ·  {source_tag}")
+                f"·  {wins} win(s) in subject team neighborhoods  ·  {source_tag}")
     c = s3.cell(row=row, column=1, value=hdr_text)
     c.font = fg_bold(WIN_FG if is_gigradar else FG, size=13)
     c.alignment = Alignment(vertical="center")
@@ -1096,7 +1121,7 @@ for idx, comp in enumerate(competitors, 1):
     ai_tactics = c2c.get("ai_tactics") or []
     formula_body = "▸ COMPETITOR FORMULA\n" + (ai_summary or "—")
     if ai_tactics:
-        formula_body += "\n\n▸ TACTICS FOR UBIQUIFY TO COPY"
+        formula_body += f"\n\n▸ TACTICS FOR {_team_name.upper()} TO COPY"
         for t in ai_tactics:
             formula_body += f"\n  • {t}"
     fc = s3.cell(row=row, column=1, value=formula_body)
@@ -1110,9 +1135,9 @@ for idx, comp in enumerate(competitors, 1):
     s3.row_dimensions[row].height = max(60, formula_lines * 14)
     row += 1
 
-    # 3) UBIQUIFY analogue header row — just a divider line before the bid pairs.
+    # 3) subject-team analogue header row — just a divider line before the bid pairs.
     s3.cell(row=row, column=1, value="").font = fg(FG_DIM, 9)
-    s3.cell(row=row, column=8, value="UBIQUIFY").font = fg_bold(UB_HL_FG, 10)
+    s3.cell(row=row, column=8, value=_team_name.upper()[:14]).font = fg_bold(UB_HL_FG, 10)
     s3.cell(row=row, column=9, value="matched win + loss analogues per competitor win (right pane)").font = fg(FG_DIM)
     s3.merge_cells(start_row=row, start_column=9, end_row=row, end_column=12)
     pane_bg(s3, row, BG_ALT)
@@ -1125,10 +1150,10 @@ for idx, comp in enumerate(competitors, 1):
     # Each pair has up to three bid cards laid out side-by-side + vertically:
     #
     #   LEFT pane (A-F):     RIGHT pane upper (H-L):   | col N (full height)
-    #   COMP WIN card         UB WIN card               | AI REASONING:
+    #   COMP WIN card         OUR WIN card               | AI REASONING:
     #                                                   |   WHAT WORKED FOR THEM
-    #   (LEFT continues       RIGHT pane lower:         |   WHAT UBIQUIFY DID
-    #    w/ faded note)       UB LOSS card              |   TACTIC TO COPY
+    #   (LEFT continues       RIGHT pane lower:         |   WHAT SUBJECT-TEAM DID
+    #    w/ faded note)       OUR LOSS card              |   TACTIC TO COPY
     #
     # Each card uses the same 6-section shape so the reader can eyeball deltas
     # field-by-field:
@@ -1268,7 +1293,7 @@ for idx, comp in enumerate(competitors, 1):
 
         job_title = _clean(card_data.get("job_title"), 140) or "—"
         jd_excerpt = _clean(card_data.get("jd_excerpt"), 400)
-        # header label (UB WIN / UB LOSS / THEIR WIN) above; title in cell
+        # header label (OUR WIN / OUR LOSS / THEIR WIN) above; title in cell
         r_cell = s3.cell(row=r, column=col_start, value=header_label_final)
         r_cell.font = fg_bold(match_badge_color or header_color, 10)
         r_cell.alignment = Alignment(vertical="top", wrap_text=True)
@@ -1304,7 +1329,7 @@ for idx, comp in enumerate(competitors, 1):
         # ── FREELANCER ──
         fr = card_data.get("freelancer") or None
         fr_line1, fr_body, fr_url = _fl_block(fr) if fr else (None, None, None)
-        # URL may come from phase4 (UB side) where freelancer is in `freelancer_profile`
+        # URL may come from phase4 (OUR side) where freelancer is in `freelancer_profile`
         if not fr_line1 and card_data.get("freelancer_profile"):
             fr_line1, fr_body, fr_url = _fl_block(card_data.get("freelancer_profile"))
         if not fr_line1 and card_data.get("freelancer_name"):
@@ -1373,7 +1398,7 @@ for idx, comp in enumerate(competitors, 1):
         s3.row_dimensions[row].height = 22
         row += 1
 
-        # --- Competitor win card + UB WIN card side-by-side (rows = 6) ---
+        # --- Competitor win card + OUR WIN card side-by-side (rows = 6) ---
         cw_tmpl, cw_scanner, cw_match_pct = _lookup_frozen_template_for_comp(cw.get("proposal_id"))
 
         cw_card_data = dict(cw)
@@ -1384,13 +1409,13 @@ for idx, comp in enumerate(competitors, 1):
         left_end = render_bid_card(row, 1, 6, "THEIR WIN", LINK_FG, cw_card_data, cl_color=FG)
         uw_badge_txt, uw_badge_fg = _match_badge(uw)
         if uw:
-            right_end = render_bid_card(row, 8, 12, "UB WIN", WIN_FG, uw, cl_color=WIN_FG,
+            right_end = render_bid_card(row, 8, 12, "OUR WIN", WIN_FG, uw, cl_color=WIN_FG,
                                         match_badge_text=uw_badge_txt, match_badge_color=uw_badge_fg)
         else:
-            # write a single stub row on the UB WIN side; won't align with left card
+            # write a single stub row on the OUR WIN side; won't align with left card
             # bottom but left card is 6 rows tall so we pad the right side to match.
-            render_bid_card(row, 8, 12, "UB WIN", WIN_FG, {}, cl_color=FG_DIM,
-                            is_missing_reason="— no comparable UB WIN above similarity threshold —")
+            render_bid_card(row, 8, 12, "OUR WIN", WIN_FG, {}, cl_color=FG_DIM,
+                            is_missing_reason="— no comparable OUR WIN above similarity threshold —")
             right_end = row  # single row
         # Align pane heights: pad the shorter side with empty rows so the block
         # ends cleanly at max(left_end, right_end).
@@ -1398,13 +1423,13 @@ for idx, comp in enumerate(competitors, 1):
         for rr in range(min(left_end, right_end) + 1, pair_ub_win_end + 1):
             pane_bg(s3, rr, BG_ALT)
 
-        # --- AI REASONING in col N — merged across the full pair (spans UB WIN + UB LOSS) ---
+        # --- AI REASONING in col N — merged across the full pair (spans OUR WIN + OUR LOSS) ---
         ai_www = pair.get("ai_what_worked_for_them") or ""
         ai_uwd = pair.get("ai_what_ubiquify_did") or ""
         ai_tactic = pair.get("ai_specific_tactic_to_copy") or ""
         rsn_parts = []
         if ai_www: rsn_parts.append("WHAT WORKED FOR THEM\n" + ai_www)
-        if ai_uwd: rsn_parts.append("WHAT UBIQUIFY DID\n" + ai_uwd)
+        if ai_uwd: rsn_parts.append(f"WHAT {_team_name.upper()} DID\n" + ai_uwd)
         if ai_tactic: rsn_parts.append("TACTIC TO COPY\n" + ai_tactic)
         rsn_full = "\n\n".join(rsn_parts) if rsn_parts else (pair.get("reasoning") or "—")
 
@@ -1414,7 +1439,7 @@ for idx, comp in enumerate(competitors, 1):
 
         row = pair_ub_win_end + 1
 
-        # --- UB LOSS card (right pane only, faded left) ---
+        # --- OUR LOSS card (right pane only, faded left) ---
         if ul:
             # small sep row
             for cc in range(1, 15):
@@ -1432,8 +1457,8 @@ for idx, comp in enumerate(competitors, 1):
             ul_badge_txt, ul_badge_fg = _match_badge(ul)
             # Start the loss card on the SAME row as the "↘ Same competitor win" label
             # on the right pane.
-            # write UB LOSS card (JOB/CLIENT/BID/FL/CL/TMPL) from this row across cols 8-12
-            ul_end = render_bid_card(row, 8, 12, "UB LOSS", CRIT_FG, ul, cl_color=CRIT_FG,
+            # write OUR LOSS card (JOB/CLIENT/BID/FL/CL/TMPL) from this row across cols 8-12
+            ul_end = render_bid_card(row, 8, 12, "OUR LOSS", CRIT_FG, ul, cl_color=CRIT_FG,
                                      match_badge_text=ul_badge_txt, match_badge_color=ul_badge_fg)
             # Fill the left side cells below the label row with faded BG_ALT + dim text
             for rr in range(row + 1, ul_end + 1):
@@ -1474,7 +1499,7 @@ s4 = wb.create_sheet("Chat Excerpts")
 darken_sheet(s4)
 s4["A1"] = "Chat Excerpts — SKIPPED"
 s4["A1"].font = fg_bold(CRIT_FG, 16)
-s4["A2"] = ("leads.chats collection is not populated for Ubiquify. 759 proposals have chat.chatId, "
+s4["A2"] = (f"leads.chats coverage may be sparse for this team — see phase3_chats.json for the probe result. Many teams have chat.chatId on proposals but no synced leads.chats rooms. "
             "but 0 leads.chats docs exist for this team. Chat-sync has not run.")
 s4["A2"].font = fg(FG)
 s4["A2"].alignment = Alignment(wrap_text=True)
@@ -1667,7 +1692,7 @@ recs = [
      "AM-05-A, AM-03-C", "30 days", "25 proposals each",
      "If still 0 after 25 sent, suspect broader platform or targeting shift."),
     ("CRITICAL", "Data hygiene",
-     "Populate teams.serviceNames = ['Web/Mobile/SW Dev', 'AI/ML'] and teams.industry for Ubiquify.",
+     "Populate teams.serviceNames and teams.industry for this team. They're commonly null on long-tenured accounts.",
      "Phase 1: team doc has serviceNames=[] and industry=null → breaks internal benchmark widgets.",
      "Enables dashboard.benchmarks lookup; correct peer cohort for all future audits.",
      "Benchmark widgets populate",
@@ -1675,7 +1700,7 @@ recs = [
      "n/a"),
     ("CRITICAL", "Platform engineering",
      "Run chat-sync backfill for team 679a215568faa05722aabb93.",
-     "Phase 3: 759 proposals with chatId but 0 leads.chats — CL→interview funnel unmeasurable.",
+     "Phase 3: many proposals carry chat.chatId but leads.chats may not be synced — CL→interview funnel can be unmeasurable. Probe before drawing conclusions.",
      "Enables Section 3 diagnostics on next audit; unlocks chat-driven retention features.",
      "leads.chats populated for team",
      "GigRadar infra", "1 day", "n/a",
@@ -1702,7 +1727,7 @@ recs = [
      "all scanners", "30 days", "20 replies handled",
      "n/a"),
     ("OKAY", "Account positioning",
-     "Populate Ubiquify's Upwork agency profile title + description. Currently empty.",
+     "Populate the team's Upwork agency profile title + description if empty.",
      "Phase 1: agency profile has no title/description/category/skills populated. Competitors (RipeSeed, League Design, Perfsol, WeSoftYou) all have rich positioning profiles.",
      "Higher client click-through from proposal to profile; more invites.",
      "Invite count delta +20%",
@@ -1744,6 +1769,9 @@ for ws in wb.worksheets:
         )
 
 # ---- save ----
-OUT = "/sessions/dazzling-nifty-fermat/mnt/GigRadar AI Auto Researcher/Ubiquify_Audit_2026-04-22.xlsx"
+import re as _re_out
+_team_slug = _re_out.sub(r"[^A-Za-z0-9]+", "_", _team_name).strip("_") or "audit"
+_audit_date = _fw_end or ""
+OUT = _os_ld.environ.get("AUDIT_OUT_XLSX") or f"{WORK_DIR}/{_team_slug}_Audit_{_audit_date}.xlsx"
 wb.save(OUT)
 print(f"Saved: {OUT}")

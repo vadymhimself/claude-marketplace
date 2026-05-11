@@ -130,6 +130,18 @@ The workspace-level `DATA_REFERENCE.md` (visible to the rest of the GigRadar tea
 - `0.2.0` — Added `/customer-audit` skill and reference docs (retro-first methodology, opportunities-first join, reply-rate as north-star).
 - `0.3.0` — Deduped `DATA_REFERENCE` into a single plugin-root canonical (`references/data-reference.md`). Bundled the full Phase-1→6 reference-implementation scripts under `skills/customer-audit/scripts/` (Ubiquify 2026-04-22 run), including the subagent-dispatched AI judgment pass (`merge_ai_judgments.py` + `gen_playbook.py`) for per-competitor CL pattern analysis. Added §25 to the data reference documenting the phase2c schema, subagent bundle format, and dark-mode workbook rendering conventions.
 
+### Unreleased — test push (no version bump)
+
+Hardened customer-audit scripts after the second customer run (Interactivated Solutions 2026-05-11). All edits are portable — no team OIDs or dates baked in.
+
+- **build_workbook.py** — fully parameterized for any subject team: title, focus dates, all UBIQUIFY / Ubiquify labels replaced with subject-team name from `phase1["team"]["name"]`; "UB WIN" / "UB LOSS" cell labels are now "OUR WIN" / "OUR LOSS"; magic numbers (29 invites, 100% RR, 0.25% hire rate, "N=46 hiring peers", "N=157 peers", etc.) all replaced with dynamic lookups from the JSON data. Output filename now uses `{team_slug}_Audit_{focus_end_date}.xlsx`. Reads via `AUDIT_WORK_DIR` env or script dir.
+- **phase1_retro_v2.py** — NDJSON cache loader for opps + props (reruns skip the slow 20k+ opp scan); index hint on the proposals sort; `socketTimeoutMS=180000`; `_to_oid` normalizer for cache-vs-DB `_id` lookups.
+- **phase2b_v2_peer_knn.py** — `es_mget` helper batches all seed embeddings in a single ES round-trip (was N round-trips at ~1.5s each); preserves seed insertion order (was alpha-sorted → surfaced oldest ciphertexts first, many already aged out of ES); index hint on the per-competitor proposals sort; `p2b_seeds_preloaded.json` escape hatch when Mongo's index-less sort returns stale ciphertexts.
+- **phase3_chats.py** — probes BOTH ObjectId and string shapes of `gigradarTeamId` on `leads.chats` (varies by team); messages query uses `upworkRoomUid` ALONE since `gigradarTeamId` is null on many teams' message rows; reads `TEAM_OID` + `AUDIT_WORK_DIR` from env.
+- **phase4_winloss.py** — per-scanner checkpoint to `OUT` so reruns resume cleanly from interruption.
+- **merge_ai_judgments.py** — supports `judgment_NN.json` positional filenames (subagent dispatch standard) in addition to legacy `NN_<prefix>.json`.
+- **audit-playbook.md** — added gotchas §17 (agency-profile gigradarTeamId shape varies), §18 (sort hint required on proposals), §19 (preserve insertion order, don't sort alphabetically), §20 (sandbox pyOpenSSL fix). Strengthened §10 with the leads.chats string-vs-ObjectId + messages-have-no-team-id finding.
+
 ## Questions / ownership
 
 - **Plugin owner:** GigRadar (internal)

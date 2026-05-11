@@ -316,11 +316,26 @@ def row_to_table(r, outcome):
     }
 
 
+import os as _os
 result = {"scanners": []}
+_done_sids = set()
+# Resume: if a partial OUT exists, skip already-processed scanners
+if _os.path.exists(OUT):
+    try:
+        _existing = json.load(open(OUT))
+        result["scanners"] = _existing.get("scanners", [])
+        for _sc in result["scanners"]:
+            _done_sids.add(_sc.get("scanner_id"))
+        print(f"  [resume] loaded {len(_done_sids)} scanners from cache")
+    except Exception as _e:
+        print(f"  [resume] cache load failed: {_e}")
 
 for s in top_scanners:
     sid = s["_id"]
     if not sid:
+        continue
+    if str(sid) in _done_sids:
+        print(f"  [{s['name']!r:40s}] SKIP (already done)")
         continue
     winners, losers = pick_winners_losers(sid)
     rows_out = []
@@ -338,7 +353,10 @@ for s in top_scanners:
         "rows": rows_out,
     }
     result["scanners"].append(sc)
-    print(f"  [{s['name']!r:40s}] wins={len(winners)} losses={len(losers)}")
+    # Persist after each scanner so reruns can resume from interruption
+    with open(OUT, "w") as _f:
+        json.dump(result, _f, indent=2, default=str)
+    print(f"  [{s['name']!r:40s}] wins={len(winners)} losses={len(losers)} [saved]")
 
 with open(OUT, "w") as f:
     json.dump(result, f, indent=2, default=str)

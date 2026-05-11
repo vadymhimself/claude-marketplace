@@ -551,7 +551,10 @@ These are real-data quirks (discovered on the Ubiquify audit 2026-04-22) that WI
 
 9. **`archiveReason` is an empty skeleton on most teams.** Present as an object but all sub-fields null. Probe before relying on it. The typo field `declineReadon` (extra letter) carries the real client-decline signal — but only on 0.6% of proposals (post-reply declines). Don't build distribution grids off these — use only for one-line Notes in Win/Loss rows.
 
-10. **`leads.chats` is populated for some teams, empty for others.** Ubiquify has 759 proposals with `chat.chatId` but ZERO `leads.chats` docs for the team (chat sync not run). Probe `db.leads.chats.findOne({gigradarTeamId: TEAM_OID})` before writing Section 3 and fall back to skipping chat-transcript reading if the collection is dry.
+10. **`leads.chats` is populated for some teams, empty for others, and has mixed-type team-id fields.** Ubiquify had 759 proposals with `chat.chatId` but ZERO `leads.chats` docs for the team (chat sync not run). Interactivated had 3,198 proposals with `chat.chatId` but only 50 historical `leads.chats` rooms (mostly 2018-2023; modern proposals' chat IDs don't have synced rooms). Key gotchas:
+    - **`leads.chats.gigradarTeamId` may be ObjectId OR string** — probe both shapes. Interactivated stores it as a string; Ubiquify as ObjectId.
+    - **`leads.chats.messages.gigradarTeamId` is often `null`** even on teams whose rooms have it. When fetching messages, query by `upworkRoomUid` ALONE — do NOT add a team filter. (Phase3 v0.4 reflects this.)
+    - Probe order: `findOne({gigradarTeamId: ObjectId})` first, then `findOne({gigradarTeamId: str})` if that's empty. Skip Section 3 if both return nothing.
 
 11. **`opportunities.feedback` + `OpportunityFeedbackReason` / `ApplicationFeedbackReason` are empty on many teams.** Schema-wise they exist; data-wise they don't populate consistently. Don't build an audit around these fields without a coverage probe. (Data-reference §24.5.)
 
@@ -564,6 +567,24 @@ These are real-data quirks (discovered on the Ubiquify audit 2026-04-22) that WI
 15. **`matcher.embedding` coverage is incomplete before 2025-10.** KNN on pre-2025-06 seeds returns nothing. Always check `_source.matcher.embedding` is a 1536-length array on the seed before running KNN; skip if absent. (See Section 2B coverage table.)
 
 16. **`metaJob.meta.topBids` is anonymized — useless.** All `bids.name` are placeholders (`"1st place"`), `connects: 0`. Do not harvest.
+
+17. **`upwork.agency.profiles.gigradarTeamId` shape varies by team.** Ubiquify uses ObjectId; Interactivated uses STRING. Probe both shapes:
+    ```python
+    prof = (agency_col.find_one({"gigradarTeamId": ObjectId(tid)})
+            or agency_col.find_one({"gigradarTeamId": str(tid)})
+            or agency_col.find_one({"_gigradarTeamOid": ObjectId(tid)}))
+    ```
+    Falling back across all three shapes covers the populations we've encountered.
+
+18. **Mongo `proposals.find({_gigradarTeamOid, meta.createdAt: {$gte}}).sort("meta.createdAt", -1)` is NOT covering by default.** The sort returns ciphertexts in arbitrary order — older first by accident on long-history teams. Always pass `.hint([("_gigradarTeamOid", 1), ("meta.createdAt", -1)])`. Otherwise on long-history teams the seed query in phase2b returns ciphertexts that have already aged out of the ES metajob index.
+
+19. **`set(ciphertexts)` followed by `sorted()` alphabetically reorders seeds and destroys date-DESC intent.** Ciphertexts like `~02203…` come BEFORE `~02204…` lexicographically — so sorting puts oldest first. Use `dict.fromkeys(...)` or an explicit `_seen` filter to preserve insertion order from Mongo's sort.
+
+20. **Sandbox `pyOpenSSL` mismatch breaks pymongo on first import.** The Cowork sandbox ships a stale system `pyOpenSSL` that crashes when `cryptography>=42` tries to load X509 flags. Fix at session start:
+    ```bash
+    pip install --break-system-packages -q --upgrade 'pyOpenSSL>=24' 'cryptography>=42'
+    ```
+    Verified working with pyOpenSSL 26.x. Required on every fresh session.
 
 ---
 

@@ -17,22 +17,32 @@ JUDGMENTS_DIR = Path("/tmp/comp_judgments")
 phase2c = json.load(PHASE2C.open())
 by_id = {c["team_id"]: c for c in phase2c["competitors"]}
 
-# Build prefix map: first 12 chars -> full team_id
+# Phase2c stores competitors in ranked order. Judgments named
+# judgment_NN.json from subagent dispatch use the 1-based bundle index.
+# Also support legacy NN_<prefix>.json filenames.
 prefix_map = {tid[:12]: tid for tid in by_id}
+ordered_competitors = phase2c["competitors"]
 
 matched = 0
 unmatched = []
 for jf in sorted(os.listdir(JUDGMENTS_DIR)):
-    m = re.match(r"(\d+)_([a-f0-9]+)\.json", jf)
-    if not m:
-        continue
-    prefix = m.group(2)
-    full_tid = prefix_map.get(prefix)
-    if not full_tid:
+    m_positional = re.match(r"judgment_(\d+)\.json", jf)
+    m_legacy = re.match(r"(\d+)_([a-f0-9]+)\.json", jf)
+    competitor = None
+    if m_positional:
+        idx = int(m_positional.group(1))
+        if 1 <= idx <= len(ordered_competitors):
+            competitor = ordered_competitors[idx - 1]
+            full_tid = competitor.get("team_id")
+    elif m_legacy:
+        prefix = m_legacy.group(2)
+        full_tid = prefix_map.get(prefix)
+        if full_tid:
+            competitor = by_id[full_tid]
+    if not competitor:
         unmatched.append(jf)
         continue
     judgment = json.load((JUDGMENTS_DIR / jf).open())
-    competitor = by_id[full_tid]
 
     # Attach competitor-level AI fields
     competitor["ai_summary"] = judgment.get("competitor_summary", "")

@@ -80,6 +80,19 @@ def es(path, body, method="POST"):
     return json.loads(urllib.request.urlopen(req, timeout=60, context=ctx).read())
 
 
+def es_mget(index, ids, source_fields):
+    """Batch GET multiple docs by _id via /_mget. Much faster than per-doc GETs
+    and the standard way to fetch many embeddings before a KNN loop."""
+    body = {"docs": [{"_id": i, "_source": source_fields} for i in ids]}
+    req = urllib.request.Request(
+        ES_URL + f"/{index}/_mget",
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    return json.loads(urllib.request.urlopen(req, timeout=60, context=ctx).read())
+
+
 def es_get(path):
     req = urllib.request.Request(
         ES_URL + path,
@@ -105,7 +118,14 @@ print("(1) Ubiquify seed jobs — replied OR hired since 2025-10")
 print("=" * 70)
 
 seed_cts = []
-for p in db.proposals.find(
+# Escape hatch: pre-loaded seed list (useful when Mongo's index-less sort returns
+# stale ciphertexts that have already aged out of the ES metajob index).
+_preload = os.path.join(os.path.dirname(os.path.abspath(__file__)), "p2b_seeds_preloaded.json")
+if os.path.exists(_preload):
+    print(f"[seeds] loading from preloaded {_preload}")
+    seed_cts = json.load(open(_preload))
+else:
+  for p in db.proposals.find(
     {
         "_gigradarTeamOid": TEAM_OID,
         "meta.createdAt": {"$gte": EMBED_COVERAGE_START},
@@ -119,19 +139,19 @@ for p in db.proposals.find(
     },
     {"_id": 1, "meta.uid": 1, "meta.status": 1, "meta.jobTitle": 1,
      "meta.createdAt": 1, "metaJob.ciphertext": 1, "dashroomUID": 1},
-).sort("meta.createdAt", -1).limit(40):
-    ct = (p.get("metaJob") or {}).get("ciphertext")
-    if ct:
-        seed_cts.append({
-            "ciphertext": ct,
-            "title": (p.get("meta") or {}).get("jobTitle"),
-            "status": (p.get("meta") or {}).get("status"),
-            "replied": bool(p.get("dashroomUID")),
-            "hired": (p.get("meta") or {}).get("status") in [10, "Hired"],
-        })
+  ).hint([("_gigradarTeamOid", 1), ("meta.createdAt", -1)]).sort("meta.createdAt", -1).limit(40):
+      ct = (p.get("metaJob") or {}).get("ciphertext")
+      if ct:
+          seed_cts.append({
+              "ciphertext": ct,
+              "title": (p.get("meta") or {}).get("jobTitle"),
+              "status": (p.get("meta") or {}).get("status"),
+              "replied": bool(p.get("dashroomUID")),
+              "hired": (p.get("meta") or {}).get("status") in [10, "Hired"],
+          })
 
 print(f"  seed candidates: {len(seed_cts)}")
-seed_set = sorted({s["ciphertext"] for s in seed_cts})
+_seen = set(); seed_set = [s["ciphertext"] for s in seed_cts if not (s["ciphertext"] in _seen or _seen.add(s["ciphertext"]))]
 print(f"  unique seed ciphertexts: {len(seed_set)}")
 
 
@@ -153,19 +173,26 @@ cohort_teams = set()
 seed_reports = []
 
 seed_embeddings_missing = 0
-for ct in seed_set:
+# PERF: batch-fetch all seed embeddings up-front via _mget (1 round-trip vs N)
+_emb_map = {}
+if seed_set:
     try:
-        doc = es_get(f"/metajob/_doc/{urlp.quote(ct, safe='')}")
-    except Exception as e:
-        doc = {"_error": str(e)}
-    if not doc or "_source" not in doc:
-        seed_reports.append({"seed": ct, "skip": "doc-miss"})
-        continue
-    emb = ((doc.get("_source") or {}).get("matcher") or {}).get("embedding")
-    if not emb or len(emb) != 1536:
+        _mg = es_mget("metajob", seed_set, ["matcher.embedding"])
+        for _d in (_mg.get("docs") or []):
+            if _d.get("found"):
+                _e = ((_d.get("_source") or {}).get("matcher") or {}).get("embedding")
+                if _e and len(_e) == 1536:
+                    _emb_map[_d.get("_id")] = _e
+    except Exception as _e:
+        print(f"  [mget] failed, falling back to per-seed GETs: {_e}")
+print(f"  embeddings prefetched: {len(_emb_map)}/{len(seed_set)}")
+
+for ct in seed_set:
+    if ct not in _emb_map:
         seed_embeddings_missing += 1
         seed_reports.append({"seed": ct, "skip": "no-embedding"})
         continue
+    emb = _emb_map[ct]
     knn_body = {
         "knn": {
             "field": "matcher.embedding",
@@ -672,7 +699,7 @@ for _comp_idx, (tid_str, rec) in enumerate(ranked[:10], 1):
             break
         q = {"_gigradarTeamOid": tid, "metaJob.ciphertext": {"$in": ct_list}}
         q.update(extra)
-        for p in db.proposals.find(q, proj).sort("meta.createdAt", -1).limit(TOP_N):
+        for p in db.proposals.find(q, proj).hint([("_gigradarTeamOid", 1), ("meta.createdAt", -1)]).sort("meta.createdAt", -1).limit(TOP_N):
             if len(collected) >= TOP_N:
                 break
             pid = str(p["_id"])

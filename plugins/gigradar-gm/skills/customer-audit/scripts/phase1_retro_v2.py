@@ -103,7 +103,7 @@ def is_outbound_bid(prop):
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=60000)
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=60000, socketTimeoutMS=180000)
     db = client["gigradar-dev"]
 
     # ----- A. Team + agency profile + scanners -----
@@ -157,101 +157,132 @@ def main():
     )
 
     # ----- B. Build opportunity → proposal join map (proposalId → opp) -----
-    # Opportunities are the auto-bidder record. Team filter uses gigradarTeamId (ObjectId).
-    # Filter: proposalId exists (= there is an actual attempted proposal).
-    print("Pulling opportunities ...")
-    opps_cursor = db.opportunities.find(
-        {
-            "gigradarTeamId": TEAM_OID,
-            "isPreview": {"$ne": True},
-            "application.proposalId": {"$exists": True, "$nin": [None, ""]},
-        },
-        {
-            "_id": 1, "gigradarTeamId": 1,
-            "scannerId": 1, "scannerName": 1,
-            "originalGigTempId": 1, "score": 1, "jobId": 1, "jobUid": 1,
-            "notified": 1, "detected": 1, "generationStartedAt": 1, "published": 1,
-            "application.proposalId": 1,
-            "application.algorithmSignature": 1,
-            "application.algorithmVer": 1,
-            "application.promptVersion": 1,
-            "application.model": 1,
-            "application.config.llm": 1,
-            "application.config.prompt_version": 1,
-            "application.bid": 1,
-            "application.connectPrice": 1,
-            "application.cost": 1,
-            "application.boost": 1,
-            "application.matchPercentage": 1,
-            "application.generated": 1,
-            "application.sent": 1,
-            # Keep CL / strategy narrow — only fetched separately for hired/replied later
-        },
-    )
-
-    opp_by_pid = {}
-    opp_count = 0
-    for o in opps_cursor:
-        opp_count += 1
-        pid = ((o.get("application") or {}).get("proposalId"))
-        if pid:
-            opp_by_pid[str(pid)] = o
-    print(f"  opps fetched: {opp_count}, with non-empty proposalId: {len(opp_by_pid)}")
+    # Load from cached NDJSON if present, else pull from Mongo.
+    # Caching lets reruns skip the slow 20k+ opp scan when iterating downstream phases.
+    cache_opps = os.path.join(OUT_DIR, "opps.ndjson")
+    if os.path.exists(cache_opps):
+        print(f"Loading opportunities from cache {cache_opps} ...")
+        opp_by_pid = {}
+        opp_count = 0
+        with open(cache_opps) as _f:
+            for _line in _f:
+                o = json.loads(_line)
+                opp_count += 1
+                pid = ((o.get("application") or {}).get("proposalId"))
+                if pid:
+                    opp_by_pid[str(pid)] = o
+        print(f"  opps loaded from cache: {opp_count}, joinable: {len(opp_by_pid)}")
+    else:
+        print("Pulling opportunities ...")
+        opps_cursor = db.opportunities.find(
+            {
+                "gigradarTeamId": TEAM_OID,
+                "isPreview": {"$ne": True},
+                "application.proposalId": {"$exists": True, "$nin": [None, ""]},
+            },
+            {
+                "_id": 1, "gigradarTeamId": 1,
+                "scannerId": 1, "scannerName": 1,
+                "originalGigTempId": 1, "score": 1, "jobId": 1, "jobUid": 1,
+                "notified": 1, "detected": 1, "generationStartedAt": 1, "published": 1,
+                "application.proposalId": 1,
+                "application.algorithmSignature": 1,
+                "application.algorithmVer": 1,
+                "application.promptVersion": 1,
+                "application.model": 1,
+                "application.config.llm": 1,
+                "application.config.prompt_version": 1,
+                "application.bid": 1,
+                "application.connectPrice": 1,
+                "application.cost": 1,
+                "application.boost": 1,
+                "application.matchPercentage": 1,
+                "application.generated": 1,
+                "application.sent": 1,
+                # Keep CL / strategy narrow — only fetched separately for hired/replied later
+            },
+        )
+        opp_by_pid = {}
+        opp_count = 0
+        for o in opps_cursor:
+            opp_count += 1
+            pid = ((o.get("application") or {}).get("proposalId"))
+            if pid:
+                opp_by_pid[str(pid)] = o
+        print(f"  opps fetched: {opp_count}, joinable: {len(opp_by_pid)}")
 
     # ----- C. Full proposal history -----
-    print("Pulling proposals ...")
-    prop_cursor = db.proposals.find(
-        {"_gigradarTeamOid": TEAM_OID},
-        {
-            "_id": 1, "_gigradarTeamOid": 1,
-            "meta.uid": 1,
-            "meta.createdAt": 1, "meta.status": 1,
-            "meta.jobId": 1, "meta.jobTitle": 1,
-            "meta.author.name": 1, "meta.author.uid": 1,
-            "meta.freelancer.name": 1, "meta.freelancer.rid": 1,
-            "meta.chat.chatId": 1, "meta.chat.createdTs": 1,
-            "meta.inviteToInterviewUid": 1,
-            "meta.connectsExpended": 1,
-            "terms.connectsBid": 1, "terms.rate": 1, "terms.chargeRate": 1,
-            "terms.amount": 1, "terms.hourlyRate": 1, "terms.duration": 1,
-            "connectsExpended": 1,
-            "dashroomUID": 1,
-            "auditDetails.modifiedTs": 1, "auditDetails.createdTs": 1,
-            "applicationUID": 1,
-            "otherAnnotations": 1,
-            "archiveReason.reason": 1, "archiveReason.reasonRef": 1,
-            # CL text only kept for hired/replied — collected in D
-        },
-    ).sort("meta.createdAt", 1)
+    cache_props = os.path.join(OUT_DIR, "props.ndjson")
+    if os.path.exists(cache_props):
+        print(f"Loading proposals from cache {cache_props} ...")
+        proposals = []
+        hired_docs = []
+        replied_docs = []
+        with open(cache_props) as _f:
+            for _line in _f:
+                p = json.loads(_line)
+                proposals.append(p)
+                if is_hired(p):
+                    hired_docs.append(p)
+                if is_replied(p):
+                    replied_docs.append(p)
+        print(f"  proposals loaded from cache: {len(proposals)}  hired: {len(hired_docs)}  replied: {len(replied_docs)}")
+    else:
+        print("Pulling proposals ...")
+        prop_cursor = db.proposals.find(
+            {"_gigradarTeamOid": TEAM_OID},
+            {
+                "_id": 1, "_gigradarTeamOid": 1,
+                "meta.uid": 1,
+                "meta.createdAt": 1, "meta.status": 1,
+                "meta.jobId": 1, "meta.jobTitle": 1,
+                "meta.author.name": 1, "meta.author.uid": 1,
+                "meta.freelancer.name": 1, "meta.freelancer.rid": 1,
+                "meta.chat.chatId": 1, "meta.chat.createdTs": 1,
+                "meta.inviteToInterviewUid": 1,
+                "meta.connectsExpended": 1,
+                "terms.connectsBid": 1, "terms.rate": 1, "terms.chargeRate": 1,
+                "terms.amount": 1, "terms.hourlyRate": 1, "terms.duration": 1,
+                "connectsExpended": 1,
+                "dashroomUID": 1,
+                "auditDetails.modifiedTs": 1, "auditDetails.createdTs": 1,
+                "applicationUID": 1,
+                "otherAnnotations": 1,
+                "archiveReason.reason": 1, "archiveReason.reasonRef": 1,
+                # CL text only kept for hired/replied — collected in D
+            },
+        ).hint([("_gigradarTeamOid", 1), ("meta.createdAt", 1)])
 
-    proposals = []
-    hired_docs = []
-    replied_docs = []
-    for p in prop_cursor:
-        proposals.append(p)
-        if is_hired(p):
-            hired_docs.append(p)
-        if is_replied(p):
-            replied_docs.append(p)
-
-    print(f"  proposals fetched: {len(proposals)}  hired: {len(hired_docs)}  replied: {len(replied_docs)}")
+        proposals = []
+        hired_docs = []
+        replied_docs = []
+        for p in prop_cursor:
+            proposals.append(p)
+            if is_hired(p):
+                hired_docs.append(p)
+            if is_replied(p):
+                replied_docs.append(p)
+        print(f"  proposals fetched: {len(proposals)}  hired: {len(hired_docs)}  replied: {len(replied_docs)}")
 
     # Fetch CL text narrowly for hired + replied only
-    ids_for_cl = [p["_id"] for p in hired_docs + replied_docs]
+    def _to_oid(v):
+        try: return v if isinstance(v, ObjectId) else ObjectId(v)
+        except Exception: return v
+    ids_for_cl = [_to_oid(p["_id"]) for p in hired_docs + replied_docs]
     cl_map = {}
     if ids_for_cl:
         for d in db.proposals.find(
             {"_id": {"$in": ids_for_cl}},
             {"_id": 1, "renderedCoverLetter": 1, "coverLetter": 1},
         ):
-            cl_map[d["_id"]] = {"renderedCoverLetter": d.get("renderedCoverLetter"), "coverLetter": d.get("coverLetter")}
+            cl_map[str(d["_id"])] = {"renderedCoverLetter": d.get("renderedCoverLetter"), "coverLetter": d.get("coverLetter")}
 
     # Fetch opp-side CL text for the hired + replied set (from joined opps)
     opp_ids_for_cl = []
     for p in hired_docs + replied_docs:
         pid = (p.get("meta") or {}).get("uid")
         if pid and str(pid) in opp_by_pid:
-            opp_ids_for_cl.append(opp_by_pid[str(pid)]["_id"])
+            opp_ids_for_cl.append(_to_oid(opp_by_pid[str(pid)]["_id"]))
     opp_cl_map = {}
     if opp_ids_for_cl:
         for d in db.opportunities.find(
@@ -266,7 +297,7 @@ def main():
                 "application.originalStrategy.options.llmConfigOverride": 1,
             },
         ):
-            opp_cl_map[d["_id"]] = d
+            opp_cl_map[str(d["_id"])] = d
 
     # ----- D. Per-proposal enrichment: cohort flags + opp join fields -----
     enriched = []
@@ -333,11 +364,11 @@ def main():
                 "app_sent": d2s(app.get("sent")),
             })
         # CL text (only for hired/replied)
-        if p["_id"] in cl_map:
-            flat["rendered_cover_letter"] = cl_map[p["_id"]].get("renderedCoverLetter")
-            flat["cover_letter_proposal"] = cl_map[p["_id"]].get("coverLetter")
-        if has_opp and opp["_id"] in opp_cl_map:
-            o_d = opp_cl_map[opp["_id"]]
+        if str(p["_id"]) in cl_map:
+            flat["rendered_cover_letter"] = cl_map[str(p["_id"])].get("renderedCoverLetter")
+            flat["cover_letter_proposal"] = cl_map[str(p["_id"])].get("coverLetter")
+        if has_opp and str(opp["_id"]) in opp_cl_map:
+            o_d = opp_cl_map[str(opp["_id"])]
             flat["cover_letter_opportunity"] = ((o_d.get("application") or {}).get("coverLetter"))
             flat["original_strategy"] = ((o_d.get("application") or {}).get("originalStrategy"))
         enriched.append(flat)
@@ -401,7 +432,7 @@ def main():
         audit = p.get("auditDetails") or {}
         pid = meta.get("uid")
         opp = opp_by_pid.get(str(pid)) if pid else None
-        opp_cl = opp_cl_map.get(opp["_id"]) if opp else None
+        opp_cl = opp_cl_map.get(str(opp["_id"])) if opp else None
         app = (opp or {}).get("application") or {}
         sent_ts = aware(meta.get("createdAt"))
         hire_ts = aware(audit.get("modifiedTs")) or sent_ts
@@ -411,7 +442,7 @@ def main():
                 ttc_days = (hire_ts - sent_ts).days
             except Exception:
                 ttc_days = None
-        cl_p = cl_map.get(p["_id"]) or {}
+        cl_p = cl_map.get(str(p["_id"])) or {}
         hired_records.append({
             "proposal_id": str(p["_id"]),
             "meta_uid": pid,
