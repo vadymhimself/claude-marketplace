@@ -5,6 +5,20 @@ description: Deep-dive performance audit for a single GigRadar customer (team). 
 
 # /customer-audit
 
+## 🛡️ Fact-check against the GigRadar Knowledge Base (DO THIS BEFORE FINALIZING)
+
+Every diagnostic conclusion, every recommendation, every "do this / stop doing that" call this skill produces **must be cross-checked against the GigRadar Knowledge Base** before it lands in the workbook or in a customer-facing summary. The KB is first-party — 133,872 proposals' worth of empirical patterns, 59 published customer case studies, the full Agency Success course, and 396 Help Center articles — and it outranks any single audit's gut read.
+
+**The rule:** for every WINS / OKAY / CRITICAL bullet you're about to ship,
+1. Run `bash <plugin-dir>/skills/knowledge-base/scripts/kb_search.sh --hybrid "<the claim in plain words>"` (or use the `knowledge-base` skill directly).
+2. If a KB result contradicts your audit conclusion, **trust the KB unless you have stronger evidence specific to this customer.** Note the conflict in the comments column.
+3. If a KB result supports your audit conclusion, cite it inline — e.g. *"reply rate drops 11.8pp at >700 words (see kb:2026-04-26_cover-letters-bidding/insights/01_cover_letter_length)"*. This makes the audit defensible when the customer pushes back.
+4. If the KB says nothing about the topic, log that — silent skipping of the check is the banned pattern. Cite the search you ran.
+
+**Read the consumer skill before invoking it the first time:** `<plugin-dir>/skills/knowledge-base/SKILL.md` — especially Step 0 (credentials prereq) and the "What to do AFTER kb_search returns matches" section. Never cite from a snippet; always fetch full file content via `kb_context_for.sh` before quoting.
+
+---
+
 Deep-dive audit of a single GigRadar team. The audit is **retrospective-first**: we start by understanding what won for this client historically (before GigRadar too), then do a competitive deep-dive (cohort compare + ES KNN peer look-alikes), then read the chat transcripts of hired deals, then build the **Win/Loss CL comparison** — paired real winners and losers per scanner, with CL + JD + client context side-by-side. Auto-bidding aggregates are the last layer and only supporting context. Everything lands in a three-tier **WINS / OKAY / CRITICAL** exec summary on sheet 1 of a single dark-mode xlsx.
 
 **Reply rate is the north star**, not hire rate — GigRadar users often close off-Upwork. Hire rate is a secondary diagnostic with explicit population labels.

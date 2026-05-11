@@ -6,6 +6,35 @@ description: >-
 
 # /build-kb — bootstrap a private knowledge-base-as-a-service
 
+## 🚧 DEV-ONLY — confirm intent before proceeding (READ FIRST)
+
+**This skill is for developers / KB admins only.** It deploys Cloudflare infrastructure (R2 bucket, Vectorize index, two Workers, KV namespaces), mints API tokens, and configures a sibling consumer skill — all of which require a Cloudflare account, a paid Workers plan recommended ($5/mo), and an admin role. **It is NOT how end users query the existing KB.**
+
+Before running ANY step in this skill, the agent **MUST stop and ask the user what they're trying to do.** Do not proceed until the answer is clearly one of the two valid intents below.
+
+**Valid intents (proceed with this skill):**
+- "I'm setting up a brand-new private knowledge base in my own Cloudflare account, from scratch."
+- "I'm an admin and I need to redeploy / rotate / tear down an existing KB stack."
+
+**Invalid intents — STOP and redirect:**
+- "I want to search the GigRadar KB" → use the `knowledge-base` skill instead (`<plugin-dir>/skills/knowledge-base/`). That's the read/write client for an already-deployed KB. You don't need `build-kb` for this.
+- "I want to add a new case study / Help Center article / research file to the existing KB" → use `knowledge-base/scripts/kb_put.sh` from the `knowledge-base` skill. Not this skill.
+- "I'm not sure" or "I just want to try something" → stop, ask Vadym or whoever provisioned your KB credentials. Running this skill by accident will create new Cloudflare resources that cost money and aren't connected to the existing KB.
+
+**How to ask the user:**
+
+> "Just to confirm before I start — this skill (`build-kb`) is the developer-only bootstrap that spins up a *brand-new* Cloudflare-hosted KB stack in your account. It's not how you query or add content to the existing GigRadar KB. Are you:
+>
+> 1. Setting up a brand-new private KB from scratch in your own Cloudflare account?
+> 2. Redeploying / rotating tokens on an existing KB you administer?
+> 3. Actually trying to search or add content to the existing GigRadar KB? (If so, you want the `knowledge-base` skill instead — let me redirect you.)
+>
+> Which one?"
+
+Only proceed past this gate after the user answers (1) or (2). On answer (3), do not run any script from this skill — point them at the `knowledge-base` skill's SKILL.md and stop.
+
+---
+
 This skill sets up everything needed to turn a local folder of research / notes / transcripts into a private, queryable knowledge base that AI agents can reach from anywhere — without the content ever living on a single device or in a GitHub repo.
 
 The output is two things:

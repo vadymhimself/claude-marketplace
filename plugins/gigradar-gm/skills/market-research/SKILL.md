@@ -5,6 +5,20 @@ description: GigRadar Upwork market research — job-volume trends, client quali
 
 # GigRadar market research
 
+## 🛡️ Fact-check against the GigRadar Knowledge Base (DO THIS BEFORE FINALIZING)
+
+Every market claim, every "what's growing/shrinking" call, every "the play here is X" recommendation this skill produces **must be cross-checked against the GigRadar Knowledge Base** before it ships in the workbook / exec summary / Slack post. The KB carries 133,872 proposals' worth of empirical reply-rate patterns, 59 published customer case studies, the Agency Success course transcripts, and 396 Help Center articles — first-party content that outranks any one month's market signal.
+
+**The rule:** for every Trending-up / Trending-down / "ICP implication" / "The Play" call you're about to publish,
+1. Run `bash <plugin-dir>/skills/knowledge-base/scripts/kb_search.sh --hybrid "<the claim in plain words>"` (or use the `knowledge-base` skill directly).
+2. If a KB result contradicts your market read, **trust the KB unless the contradiction is about a fact that has clearly changed since the KB was written.** Note the conflict in the report's caveats section.
+3. If a KB result supports your read, cite it inline — *"+12% boost in Design jobs, consistent with kb:2026-04-26_cover-letters-bidding/insights/77_per_cat_boost_econ which found boost is essentially free in Design ($0.14/extra reply)"*. Makes the report defensible.
+4. If the KB has no overlapping content, log that — silent skipping of the check is the banned pattern. Cite the search you ran in the caveats.
+
+**Read the consumer skill before invoking it the first time:** `<plugin-dir>/skills/knowledge-base/SKILL.md` — especially Step 0 (credentials prereq) and the "What to do AFTER kb_search returns matches" section. Never cite from a snippet; always fetch full file content via `kb_context_for.sh` before quoting.
+
+---
+
 This skill produces a defensible view of the Upwork market from GigRadar's two data sources:
 
 - **Elasticsearch `metajob` index** — public crawl of Upwork job postings. Used for volume, category/subcategory/skill mix, budget, client quality.
