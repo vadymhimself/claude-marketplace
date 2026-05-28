@@ -1,6 +1,8 @@
-# ES `metajob` — patterns & gotchas
+# ES `metajob-all` — patterns & gotchas
 
-This is the condensed playbook for running aggregations against the GigRadar Elasticsearch `metajob` index. Everything here was earned by trial and error during the May 2025 research run; details and examples live in `data-reference.md` §8 and §15.
+This is the condensed playbook for running aggregations against the GigRadar Elasticsearch crawled-jobs index. Everything here was earned by trial and error during the May 2025 research run; details and examples live in `data-reference.md` §8 and §15.
+
+> **Alias renamed May 2026: `metajob` → `metajob-all`.** All hardcoded `/metajob/*` URL paths in older scripts are wrong. Use `/{ES_INDEX}/*` and let `ES_INDEX` (default `metajob-all`) carry the alias. Older clusters that haven't migrated still respond to `metajob` — set `ES_INDEX=metajob` to fall back. The conceptual data source is unchanged: still the public Upwork crawl, same `metaJob.*` document shape.
 
 ---
 
@@ -8,8 +10,8 @@ This is the condensed playbook for running aggregations against the GigRadar Ela
 
 - Endpoint: `https://<es-host>:9243`
 - User: `researcher-prod`
-- Role: `metajob-ro` — **index-scoped**. Cluster-level endpoints (`/_cluster/health`, `/_cat/indices`) return 403. Stick to `/metajob/_search`, `/metajob/_count`, `/metajob/_mapping`.
-- Default index alias: `metajob` (underlying `metajob-v9-000001`).
+- Role: `metajob-ro` — **index-scoped**. Cluster-level endpoints (`/_cluster/health`, `/_cat/indices`) return 403. Stick to `/metajob-all/_search`, `/metajob-all/_count`, `/metajob-all/_mapping`.
+- Default index alias: `metajob-all` (renamed from `metajob` in May 2026; underlying `metajob-v9-000001`).
 - Env vars the scripts read: `ES_URL`, `ES_USER`, `ES_PASS`, optional `ES_INDEX`.
 
 ---
@@ -145,7 +147,7 @@ If a user says "dev" or "design work", map to the full string above.
 
 ## Mapping-probe pattern
 
-When exploring a new field, first `GET /metajob/_mapping` (works under `metajob-ro`). Then do a `size=1` query projecting the field to see a real value. Only then write the aggregation. Getting the field name wrong is the single biggest time-sink in this index.
+When exploring a new field, first `GET /metajob-all/_mapping` (works under `metajob-ro`). Then do a `size=1` query projecting the field to see a real value. Only then write the aggregation. Getting the field name wrong is the single biggest time-sink in this index.
 
 ---
 

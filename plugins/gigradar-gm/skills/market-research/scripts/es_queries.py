@@ -22,7 +22,9 @@ if not ES_PASS:
     print("[es_queries] WARN: ES_PASS env var not set — search() calls will fail", file=sys.stderr)
 
 AUTH = (ES_USER, ES_PASS or "")
-INDEX = os.environ.get("ES_INDEX", "metajob")
+# Index alias was renamed `metajob` -> `metajob-all` in May 2026. Override via
+# ES_INDEX if your cluster still uses the old alias (`ES_INDEX=metajob`).
+INDEX = os.environ.get("ES_INDEX", "metajob-all")
 
 
 def search(body: dict, params: dict | None = None, index: str | None = None) -> dict:

@@ -18,6 +18,9 @@ MONGO_URI = os.environ["MONGO_URI"]  # request read-only creds from admin; see p
 ES_URL  = os.environ.get("ES_URL", "https://your-es-cluster.example/")  # override via env
 ES_USER = os.environ.get("ES_USER", "")
 ES_PASS = os.environ["ES_PASS"]  # request from admin
+# Index alias was renamed `metajob` -> `metajob-all` in May 2026. Override with
+# ES_INDEX if your cluster still uses the old alias.
+ES_INDEX = os.environ.get("ES_INDEX", "metajob-all")
 TEAM_OID = ObjectId("679a215568faa05722aabb93")
 OUT = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase4_winloss.json"
 
@@ -223,7 +226,7 @@ def fetch_jd_excerpt(ciphertext, limit=1200):
     if not ciphertext:
         return None
     import urllib.parse
-    doc = es_get(f"/metajob/_doc/{urllib.parse.quote(ciphertext, safe='')}")
+    doc = es_get(f"/{ES_INDEX}/_doc/{urllib.parse.quote(ciphertext, safe='')}")
     if not doc or "_source" not in doc:
         return None
     mj = (doc.get("_source") or {}).get("metaJob") or {}

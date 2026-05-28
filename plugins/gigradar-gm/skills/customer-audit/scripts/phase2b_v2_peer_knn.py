@@ -42,6 +42,9 @@ MONGO_URI = os.environ["MONGO_URI"]  # request read-only creds from admin; see p
 ES_URL  = os.environ.get("ES_URL", "https://your-es-cluster.example/")  # override via env
 ES_USER = os.environ.get("ES_USER", "")
 ES_PASS = os.environ["ES_PASS"]  # request from admin
+# Index alias was renamed `metajob` -> `metajob-all` in May 2026. Override with
+# ES_INDEX if your cluster still uses the old alias.
+ES_INDEX = os.environ.get("ES_INDEX", "metajob-all")
 TEAM_OID = ObjectId("679a215568faa05722aabb93")
 OUT = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase2b_peer_knn_v2.json"
 
@@ -177,7 +180,7 @@ seed_embeddings_missing = 0
 _emb_map = {}
 if seed_set:
     try:
-        _mg = es_mget("metajob", seed_set, ["matcher.embedding"])
+        _mg = es_mget(ES_INDEX, seed_set, ["matcher.embedding"])
         for _d in (_mg.get("docs") or []):
             if _d.get("found"):
                 _e = ((_d.get("_source") or {}).get("matcher") or {}).get("embedding")
@@ -209,7 +212,7 @@ for ct in seed_set:
         "size": 30,
     }
     try:
-        knn_resp = es("/metajob/_search", knn_body)
+        knn_resp = es(f"/{ES_INDEX}/_search", knn_body)
     except Exception as e:
         seed_reports.append({"seed": ct, "skip": f"knn-error {e}"})
         continue
@@ -785,7 +788,7 @@ for _comp_idx, (tid_str, rec) in enumerate(ranked[:10], 1):
     client_spent = None
     if rep_job_src:
         try:
-            jd_doc = es_get(f"/metajob/_doc/{urlp.quote(rep_job_src, safe='')}")
+            jd_doc = es_get(f"/{ES_INDEX}/_doc/{urlp.quote(rep_job_src, safe='')}")
             jd_src = (jd_doc or {}).get("_source") or {}
             mj = jd_src.get("metaJob") or {}
             jd_title = mj.get("title")
@@ -815,7 +818,7 @@ for _comp_idx, (tid_str, rec) in enumerate(ranked[:10], 1):
         pp_client_payment_verified = None
         if pp_ct:
             try:
-                jd2 = es_get(f"/metajob/_doc/{urlp.quote(pp_ct, safe='')}")
+                jd2 = es_get(f"/{ES_INDEX}/_doc/{urlp.quote(pp_ct, safe='')}")
                 jd2_src = (jd2 or {}).get("_source") or {}
                 mj2 = jd2_src.get("metaJob") or {}
                 pp_jd_title = mj2.get("title")

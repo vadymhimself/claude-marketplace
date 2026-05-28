@@ -311,7 +311,7 @@ Cluster URL in prod: `https://<es-host>:9243` (requires Basic auth — see `ES_P
 
 | Index | Purpose | Repo |
 |---|---|---|
-| `metajob` | **All crawled Upwork jobs**, write alias. Document shape = `metajob.crawledJob.CrawledJob extends upwork.Job`. | `ElasticGigsRepository` (`services/utils/elasticSearch/ElasticGigsRepository.ts`). Constant: `JOBS_INDEX_ALIAS = 'metajob'` (in `services/workers/functions/syncScannersToPercolatorV1/constants.ts`). |
+| `metajob-all` *(was `metajob` pre-May-2026)* | **All crawled Upwork jobs**, write alias. Document shape = `metajob.crawledJob.CrawledJob extends upwork.Job`. Plugin scripts read the alias from `ES_INDEX` env var (default `metajob-all`); override with `ES_INDEX=metajob` for older clusters. | `ElasticGigsRepository` (`services/utils/elasticSearch/ElasticGigsRepository.ts`). Constant: `JOBS_INDEX_ALIAS = 'metajob'` (in `services/workers/functions/syncScannersToPercolatorV1/constants.ts`). |
 | `profile-contractor` | Freelancer profiles mirror. | `ElasticContractorRepository` |
 | `profile-skill` | Skill master + aggregates. | `ElasticSkillRepository` |
 | `profile-skill-rank` | Per-contractor per-skill rank history. | `ElasticSkillRankRepository` |

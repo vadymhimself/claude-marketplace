@@ -315,8 +315,9 @@ If the `opportunities.find_one` returns None, the proposal is MANUAL — flag it
 
 Then pull the job description — ES is authoritative for current jobs, Mongo `temp.gigs` may exist for recent jobs but has 30-day TTL. Prefer ES:
 ```python
-# ES (authoritative)
-GET /metajob/_doc/{ciphertext}
+# ES (authoritative). Alias renamed metajob -> metajob-all in May 2026.
+# Use ES_INDEX env var, default metajob-all.
+GET /metajob-all/_doc/{ciphertext}
 ```
 
 Fall back to `temp.gigs.findOne({"metaJob.ciphertext": opp["jobId"]})` only if ES is unavailable. Don't rely on "job description on opportunity" — the opportunity has `jobId` (ciphertext) but not the full JD body.

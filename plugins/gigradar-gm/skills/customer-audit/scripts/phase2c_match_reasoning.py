@@ -32,6 +32,9 @@ OUT  = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase2c_match_rea
 # ES (for embedding fetch)
 ES_URL = os.environ.get("ES_URL", "https://<es-host>:9243")
 ES_AUTH = (os.environ.get("ES_USER", "researcher-prod"), os.environ.get("ES_PASS", ""))
+# Index alias was renamed `metajob` -> `metajob-all` in May 2026. Override with
+# ES_INDEX if your cluster still uses the old alias.
+ES_INDEX = os.environ.get("ES_INDEX", "metajob-all")
 
 # Vector-match thresholds
 MIN_COSINE_TIGHT = 0.78   # first-pass threshold for "confident match"
@@ -50,7 +53,7 @@ def fetch_embedding(ciphertext):
         return _emb_cache[ciphertext]
     try:
         resp = requests.get(
-            f"{ES_URL}/metajob/_doc/{urlp.quote(ciphertext, safe='')}",
+            f"{ES_URL}/{ES_INDEX}/_doc/{urlp.quote(ciphertext, safe='')}",
             auth=ES_AUTH, verify=False, timeout=15,
             params={"_source_includes": "matcher.embedding"},
         )

@@ -61,7 +61,7 @@ The plugin reads credentials from the environment — no secrets are bundled.
 | `ES_URL` | no | `https://<es-host>:9243` | ES endpoint |
 | `ES_USER` | no | `researcher-prod` | ES username |
 | `ES_PASS` | **yes** | — | ES password (role: `metajob-ro`) |
-| `ES_INDEX` | no | `metajob` | ES index alias |
+| `ES_INDEX` | no | `metajob-all` | ES index alias (renamed from `metajob` in May 2026 — older deployments may need `ES_INDEX=metajob`) |
 | `MONGO_URI` | **yes** | — | Full Mongo URI incl. creds + `?authSource=admin` |
 | `MONGO_DB` | no | `gigradar-dev` | Mongo database |
 
