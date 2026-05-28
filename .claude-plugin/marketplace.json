@@ -7,7 +7,10 @@
   "plugins": [
     {
       "name": "gigradar-gm",
+      "displayName": "GigRadar GM",
+      "version": "0.4.2",
       "description": "GigRadar market research & growth insights — retro-first customer audits, peer look-alike KNN, and Upwork job-market reply-rate benchmarks for GM / Growth / Success Manager workflows.",
+      "category": "growth",
       "source": "./plugins/gigradar-gm"
     }
   ]
