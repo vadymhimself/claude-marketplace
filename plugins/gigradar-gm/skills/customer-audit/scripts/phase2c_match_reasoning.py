@@ -19,6 +19,25 @@ Reasoning: observable, data-backed — opener style, CL length delta,
 specificity signals (named tech, year-count), template use, and scanner
 overlap. Intentionally NOT an LLM call; we want reproducibility.
 """
+
+# ===== v0.5 ENV-VAR CONTRACT =====
+# Set TEAM_OID + AUDIT_WORK_DIR per audit. Other vars have sensible defaults.
+import os as _os_env
+from datetime import datetime as _dt_env, timezone as _tz_env, timedelta as _td_env
+
+def _env_date(name, default_date):
+    raw = _os_env.environ.get(name)
+    if not raw: return default_date
+    try:
+        return _dt_env.fromisoformat(raw).replace(tzinfo=_tz_env.utc)
+    except Exception:
+        return default_date
+
+_today = _dt_env.utcnow().replace(tzinfo=_tz_env.utc, hour=0, minute=0, second=0, microsecond=0)
+_FOCUS_END_DEFAULT   = _today
+_FOCUS_START_DEFAULT = _today - _td_env(days=30)
+# ===== end env contract =====
+
 import json, re, math, os, urllib.parse as urlp
 import urllib3
 import requests
@@ -27,7 +46,7 @@ urllib3.disable_warnings()
 IN2B = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase2b_peer_knn_v2.json"
 IN4  = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase4_winloss.json"
 IN1  = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase1_retro_v2.json"
-OUT  = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase2c_match_reasoning.json"
+OUT = _os_env.path.join(_os_env.environ.get("AUDIT_WORK_DIR") or "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify", "phase2c_match_reasoning.json")
 
 # ES (for embedding fetch)
 ES_URL = os.environ.get("ES_URL", "https://<es-host>:9243")

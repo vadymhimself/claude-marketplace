@@ -6,19 +6,38 @@ Slice on opportunities.scannerId × opportunities.originalGigTempId × applicati
 Report: sent, replies, reply_rate, connects_spent, cost_per_reply, hires, hire_rate (diagnostic).
 Include focus vs prior window.
 """
+
+# ===== v0.5 ENV-VAR CONTRACT =====
+# Set TEAM_OID + AUDIT_WORK_DIR per audit. Other vars have sensible defaults.
+import os as _os_env
+from datetime import datetime as _dt_env, timezone as _tz_env, timedelta as _td_env
+
+def _env_date(name, default_date):
+    raw = _os_env.environ.get(name)
+    if not raw: return default_date
+    try:
+        return _dt_env.fromisoformat(raw).replace(tzinfo=_tz_env.utc)
+    except Exception:
+        return default_date
+
+_today = _dt_env.utcnow().replace(tzinfo=_tz_env.utc, hour=0, minute=0, second=0, microsecond=0)
+_FOCUS_END_DEFAULT   = _today
+_FOCUS_START_DEFAULT = _today - _td_env(days=30)
+# ===== end env contract =====
+
 import json
 from datetime import datetime, timezone, timedelta
 from pymongo import MongoClient
 from bson import ObjectId
 
 MONGO_URI = os.environ["MONGO_URI"]  # request read-only creds from admin; see plugin README
-TEAM_OID = ObjectId("679a215568faa05722aabb93")
-OUT = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase5_aggregates.json"
+TEAM_OID = ObjectId(_os_env.environ.get("TEAM_OID") or "679a215568faa05722aabb93")
+OUT = _os_env.path.join(_os_env.environ.get("AUDIT_WORK_DIR") or "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify", "phase5_aggregates.json")
 
-FOCUS_START = datetime(2026, 3, 23, tzinfo=timezone.utc)
-FOCUS_END = datetime(2026, 4, 22, tzinfo=timezone.utc)
-PRIOR_START = datetime(2026, 2, 21, tzinfo=timezone.utc)
-PRIOR_END = datetime(2026, 3, 23, tzinfo=timezone.utc)
+FOCUS_START = _env_date("FOCUS_START", _FOCUS_START_DEFAULT)
+FOCUS_END = _env_date("FOCUS_END", _FOCUS_END_DEFAULT)
+PRIOR_START = _env_date("PRIOR_START", FOCUS_START - _td_env(days=(FOCUS_END - FOCUS_START).days))
+PRIOR_END = _env_date("PRIOR_END", FOCUS_START)
 
 CONN_PRICE = 0.15
 

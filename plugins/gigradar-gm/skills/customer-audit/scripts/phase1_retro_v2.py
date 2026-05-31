@@ -20,6 +20,25 @@ Output: phase1_retro_v2.json  (structured retro record)
         all_proposals_v2.ndjson  (per-proposal enriched with opp join + cohort flags)
 """
 
+
+# ===== v0.5 ENV-VAR CONTRACT =====
+# Set TEAM_OID + AUDIT_WORK_DIR per audit. Other vars have sensible defaults.
+import os as _os_env
+from datetime import datetime as _dt_env, timezone as _tz_env, timedelta as _td_env
+
+def _env_date(name, default_date):
+    raw = _os_env.environ.get(name)
+    if not raw: return default_date
+    try:
+        return _dt_env.fromisoformat(raw).replace(tzinfo=_tz_env.utc)
+    except Exception:
+        return default_date
+
+_today = _dt_env.utcnow().replace(tzinfo=_tz_env.utc, hour=0, minute=0, second=0, microsecond=0)
+_FOCUS_END_DEFAULT   = _today
+_FOCUS_START_DEFAULT = _today - _td_env(days=30)
+# ===== end env contract =====
+
 import json
 import os
 from datetime import datetime, timezone
@@ -28,13 +47,13 @@ from pymongo import MongoClient
 
 
 MONGO_URI = os.environ["MONGO_URI"]  # request read-only creds from admin; see plugin README
-TEAM_OID = ObjectId("679a215568faa05722aabb93")
-OUT_DIR = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify"
+TEAM_OID = ObjectId(_os_env.environ.get("TEAM_OID") or "679a215568faa05722aabb93")
+OUT_DIR = _os_env.environ.get("AUDIT_WORK_DIR") or "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify"
 
-FOCUS_END = datetime(2026, 4, 22, tzinfo=timezone.utc)
-FOCUS_START = datetime(2026, 3, 23, tzinfo=timezone.utc)
-PRIOR_END = FOCUS_START
-PRIOR_START = datetime(2026, 2, 21, tzinfo=timezone.utc)
+FOCUS_END = _env_date("FOCUS_END", _FOCUS_END_DEFAULT)
+FOCUS_START = _env_date("FOCUS_START", _FOCUS_START_DEFAULT)
+PRIOR_END = _env_date("PRIOR_END", FOCUS_START)
+PRIOR_START = _env_date("PRIOR_START", FOCUS_START - _td_env(days=(FOCUS_END - FOCUS_START).days))
 
 
 def d2s(d):

@@ -1,11 +1,30 @@
 #!/usr/bin/env python3
 """Generate COMPETITIVE_PLAYBOOK.md from the 10 AI judgments in /tmp/comp_judgments."""
+
+# ===== v0.5 ENV-VAR CONTRACT =====
+# Set TEAM_OID + AUDIT_WORK_DIR per audit. Other vars have sensible defaults.
+import os as _os_env
+from datetime import datetime as _dt_env, timezone as _tz_env, timedelta as _td_env
+
+def _env_date(name, default_date):
+    raw = _os_env.environ.get(name)
+    if not raw: return default_date
+    try:
+        return _dt_env.fromisoformat(raw).replace(tzinfo=_tz_env.utc)
+    except Exception:
+        return default_date
+
+_today = _dt_env.utcnow().replace(tzinfo=_tz_env.utc, hour=0, minute=0, second=0, microsecond=0)
+_FOCUS_END_DEFAULT   = _today
+_FOCUS_START_DEFAULT = _today - _td_env(days=30)
+# ===== end env contract =====
+
 import json
 import os
 from pathlib import Path
 
 JUDG_DIR = Path("/tmp/comp_judgments")
-OUT = Path("/sessions/dazzling-nifty-fermat/mnt/GigRadar AI Auto Researcher/COMPETITIVE_PLAYBOOK.md")
+OUT = __import__("pathlib").Path(_os_env.environ.get("AUDIT_WORK_DIR") or "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify") / "COMPETITIVE_PLAYBOOK.md"
 
 judgments = []
 for jf in sorted(os.listdir(JUDG_DIR)):

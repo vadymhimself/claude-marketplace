@@ -24,7 +24,9 @@ Deep-dive audit of a single GigRadar team. The audit is **retrospective-first**:
 
 **Reply rate is the north star**, not hire rate — GigRadar users often close off-Upwork. Hire rate is a secondary diagnostic with explicit population labels.
 
-This skill is a set of **guidelines, analytical frames, and research prompts**, not a pre-templated pipeline. The retro + KNN + chat-room + win/loss phase is creative research; only the mechanical pulls (headline numbers, aggregate scanner tables) are scripted. Read every reference before starting. Always pin Mongo queries to an index and use minimalistic projections (see `../../references/data-reference.md`).
+**How to run this skill:** the bundled scripts in `scripts/` are the default path — they encode hundreds of hours of debugging into the data-fetch + aggregation + workbook-build pipeline. Run them in order with env-var inputs (no sed-editing required as of v0.5.0). Your creative work is in (a) interpreting what the JSONs and tables reveal, (b) writing the recommendation copy + WINS/OKAY/CRITICAL tier prose for the workbook, and (c) handling edge cases the scripts can't (rare schemas, missing data, customer-specific nuance). Departing from a scripted phase is fine **when the data shape itself doesn't fit** — but don't skip a script just because you could rewrite its logic inline. The scripts produce richer artifacts (freelancer-side profiles, AI judgment merges, 7-sheet dark-mode xlsx) than ad-hoc Mongo queries + an openpyxl rebuild.
+
+Read every reference before starting. Always pin Mongo queries to an index and use minimalistic projections (see `../../references/data-reference.md`).
 
 ---
 
@@ -342,17 +344,76 @@ Claude writes recommendations directly into a single `.xlsx` workbook. NO separa
 
 ---
 
-## The skill is guidelines, not scripts
+## Run the scripts — they're the default path
 
-The scripts in `scripts/` are a **reference implementation** of the full pipeline from the Ubiquify 2026-04-22 run — NOT a parameterized pipeline you invoke with `--team <id>`. They're scaffolding to copy into a fresh audit dir (e.g. `/sessions/<session>/audit_work/<team>/`) and edit for the current team. See `scripts/README.md` for the full ordered list (`phase1_retro_v2.py` → `phase2a_cohort_v2.py` → `phase2b_v2_peer_knn.py` → `phase2c_match_reasoning.py` → **subagent dispatch** → `merge_ai_judgments.py` → `phase3_chats.py` → `phase4_winloss.py` → `phase5_aggregates.py` → `build_workbook.py` + `gen_playbook.py`).
+As of v0.5.0 the scripts in `scripts/` are **parameterized via env vars and meant to be invoked directly**, not copied + sed-edited. The default workflow for any audit is:
 
-Retro, peer look-alike, chat-room, and the AI-judgment pass are creative prompted phases — don't force them into a rigid pipeline. When a phase doesn't fit the scripted shape, run an ad-hoc Mongo/ES query (pinned to an index, with a minimal projection) and write the results directly to the workbook.
+```bash
+# 1. Set the customer context once at the top of the session
+export TEAM_OID="<24-char ObjectId>"           # required
+export AUDIT_WORK_DIR="/sessions/<session>/audit_work/<team-slug>"  # required
+mkdir -p "$AUDIT_WORK_DIR"
+# Defaults: FOCUS_END=today, FOCUS_START=today-30d, PRIOR=preceding equal-length window.
+# Override only if the user asks for a different window.
+export FOCUS_START="2026-04-11"
+export FOCUS_END="2026-05-11"
+
+# 2. Run in order. Each script reads its inputs from $AUDIT_WORK_DIR and writes its outputs there.
+python3 scripts/phase1_retro_v2.py        # full history retro + opps/props NDJSON cache
+python3 scripts/phase2a_cohort_v2.py      # 3-cohort compare (inferred peers + geo + broad)
+python3 scripts/phase2b_v2_peer_knn.py    # peer look-alike KNN + freelancer/agency-side enrichment
+python3 scripts/phase3_chats.py           # chat transcripts (auto-skips when leads.chats is dry)
+python3 scripts/phase4_winloss.py         # per-scanner win/loss CL table
+python3 scripts/phase5_aggregates.py      # auto-bidding aggregates
+python3 scripts/phase2c_match_reasoning.py  # vector-pair competitor wins ↔ our win/loss pool
+python3 scripts/gen_bundles.py            # produce subagent bundles for parallel CL pattern analysis
+# 3. Dispatch subagents (Phase 2 Part B prompt template below) — ONE per bundle, in parallel.
+# 4. After subagents return:
+python3 scripts/merge_ai_judgments.py     # merge subagent outputs into phase2c
+python3 scripts/gen_playbook.py           # consolidated COMPETITIVE_PLAYBOOK.md
+python3 scripts/build_workbook.py         # final 7-sheet dark-mode xlsx
+```
+
+The output is `{team-slug}_Audit_{focus-end}.xlsx` in `$AUDIT_WORK_DIR`. Move it to the user's workspace folder when done.
+
+### Where creative judgment matters
+
+The scripts produce the *data layer*. The audit's value is in the *interpretation layer*, which is yours alone:
+
+- **WINS / OKAY / CRITICAL tier prose on sheet 1** — every line is a specific, dated, evidence-cited recommendation. The scripts produce the tables; you write the call-out copy.
+- **Pattern-spotting across the Win/Loss CL table and the Competitive Deep-Dive** — the scripts surface the rows; you spot the repeated boilerplate openers, the rate mismatches, the missing portfolio links.
+- **Recommendation specificity** — "improve CL quality" is useless; "kill the 'Hi, I've worked on similar implementations…' opener on scanners X/Y/Z; rewrite as a JD-quoted opinionated thesis under 600 chars; protect Roy AI LONG (12.1% RR)" is actionable. That's the agent's job.
+- **Edge cases** — `leads.chats` is dry, `serviceNames` is null, `agency.profiles` is missing for the team. Probe, document the caveat in the workbook, move on. Don't grind on a phase that the data won't support.
+
+### When to depart from a script
+
+Depart when the data shape itself doesn't fit — not because the script feels rigid. Examples that warrant going off-script:
+
+- Customer has <5 retro proposals: skim retro, lean on KNN and cohort instead. The phase1 script still runs cleanly; you just down-weight its narrative.
+- Mongo schema drift breaks a projection: patch the script in place and persist the fix back to the plugin so the next audit benefits.
+- A scanner has zero meaningful cohort to pair against: skip that scanner in Phase 4 rather than padding it with weak matches.
+
+If you find yourself **rewriting a script's logic inline** (Mongo aggregations, workbook layout, AI judgment merging), stop — that's the signal you're flying past v0.5.0 work. Run the script, persist any fix back to the plugin, and re-run.
 
 ---
 
 ## Required env vars
 
 Same as the market-research skill.
+
+**Per-audit (set once at the top of the session):**
+
+| Var | Required | Default | Purpose |
+|---|---|---|---|
+| `TEAM_OID` | **yes** | — | 24-char Mongo `_id` of the subject team |
+| `AUDIT_WORK_DIR` | **yes** | — | Working directory for all phase JSON/NDJSON outputs and the final xlsx |
+| `FOCUS_START` | no | today-30d | YYYY-MM-DD inclusive start of the focus window |
+| `FOCUS_END` | no | today | YYYY-MM-DD inclusive end of the focus window |
+| `PRIOR_START` | no | FOCUS_START-30d | Prior window start for delta comparisons |
+| `PRIOR_END` | no | FOCUS_START | Prior window end |
+| `AUDIT_OUT_XLSX` | no | `{AUDIT_WORK_DIR}/{slug}_Audit_{FOCUS_END}.xlsx` | Override the final workbook path |
+
+**Credentials (set once per environment, persist across audits):**
 
 | Var | Required | Default | Purpose |
 |---|---|---|---|
@@ -363,6 +424,14 @@ Same as the market-research skill.
 | `ES_PASS` | only if using ES | — | ES password |
 
 Plus standard Python deps: `pymongo`, `requests`, `urllib3`, `openpyxl`.
+
+**Sandbox pyOpenSSL fix (Cowork only).** First call in any fresh Cowork session, before any `python3 phaseN_*.py`:
+
+```bash
+pip install --break-system-packages -q --upgrade 'pyOpenSSL>=24' 'cryptography>=42'
+```
+
+Without this, `import pymongo` crashes on a stale system pyOpenSSL. See `references/audit-playbook.md` §20.
 
 ---
 

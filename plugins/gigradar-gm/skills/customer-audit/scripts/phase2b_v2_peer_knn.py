@@ -27,6 +27,25 @@ Fixes and additions vs v1:
 
 Output: phase2b_peer_knn_v2.json
 """
+
+# ===== v0.5 ENV-VAR CONTRACT =====
+# Set TEAM_OID + AUDIT_WORK_DIR per audit. Other vars have sensible defaults.
+import os as _os_env
+from datetime import datetime as _dt_env, timezone as _tz_env, timedelta as _td_env
+
+def _env_date(name, default_date):
+    raw = _os_env.environ.get(name)
+    if not raw: return default_date
+    try:
+        return _dt_env.fromisoformat(raw).replace(tzinfo=_tz_env.utc)
+    except Exception:
+        return default_date
+
+_today = _dt_env.utcnow().replace(tzinfo=_tz_env.utc, hour=0, minute=0, second=0, microsecond=0)
+_FOCUS_END_DEFAULT   = _today
+_FOCUS_START_DEFAULT = _today - _td_env(days=30)
+# ===== end env contract =====
+
 import json
 import urllib.request
 import urllib.parse as urlp
@@ -45,11 +64,11 @@ ES_PASS = os.environ["ES_PASS"]  # request from admin
 # Index alias was renamed `metajob` -> `metajob-all` in May 2026. Override with
 # ES_INDEX if your cluster still uses the old alias.
 ES_INDEX = os.environ.get("ES_INDEX", "metajob-all")
-TEAM_OID = ObjectId("679a215568faa05722aabb93")
-OUT = "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify/phase2b_peer_knn_v2.json"
+TEAM_OID = ObjectId(_os_env.environ.get("TEAM_OID") or "679a215568faa05722aabb93")
+OUT = _os_env.path.join(_os_env.environ.get("AUDIT_WORK_DIR") or "/sessions/dazzling-nifty-fermat/audit_work/v2_ubiquify", "phase2b_peer_knn_v2.json")
 
-FOCUS_START = datetime(2026, 3, 23, tzinfo=timezone.utc)
-FOCUS_END = datetime(2026, 4, 22, tzinfo=timezone.utc)
+FOCUS_START = _env_date("FOCUS_START", _FOCUS_START_DEFAULT)
+FOCUS_END = _env_date("FOCUS_END", _FOCUS_END_DEFAULT)
 EMBED_COVERAGE_START = datetime(2025, 10, 1, tzinfo=timezone.utc)
 
 CONN_PRICE = 0.15
