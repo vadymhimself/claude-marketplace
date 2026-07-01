@@ -18,20 +18,31 @@ This skill is **domain-agnostic** — it makes no assumptions about what kind of
 
 Before invoking any of `kb_manifest`, `kb_search`, `kb_get`, `kb_context_for`, `kb_put`, `kb_delete`, or `kb_reindex`, the agent **MUST** verify the user has KB credentials configured. The check is one line:
 
+> **Run every script in this skill from the skill's own directory** — the base
+> directory shown when this skill loaded (e.g. `…/plugins/gigradar-gm/skills/knowledge-base`).
+> `cd` there first, or call scripts by their absolute path. The scripts are **not**
+> on your `$PATH`, and they self-locate `.kb-config` at the skill root — a wrong CWD
+> (or expecting a bare `kb_setup.sh` on PATH) is the #1 cause of "kb_setup.sh: not
+> found" and false "not configured" errors for new users.
+
 ```bash
-test -s "$(dirname scripts/kb_manifest.sh)/.kb-config" && grep -q '^KB_TOKEN=' "$(dirname scripts/kb_manifest.sh)/.kb-config"
+cd "<this skill's directory>"          # the base dir shown when this skill loaded
+test -s .kb-config && grep -q '^KB_TOKEN=' .kb-config
 ```
 
-Or in plain terms: `<skill-dir>/.kb-config` must exist and contain at least `KB_WORKER_URL` and `KB_TOKEN`.
+Or in plain terms: `<skill-dir>/.kb-config` (skill root, NOT `scripts/`) must exist and contain at least `KB_WORKER_URL` and `KB_TOKEN`.
 
 **If the file is missing, empty, or incomplete — STOP. Do NOT proceed with any KB operation. Instead:**
 
 1. Tell the user, in plain language: "I can't reach the Knowledge Base yet — I need your KB credentials. If you don't have them, contact your KB / GigRadar admin to get provisioned (you should receive an email with a paste-ready setup snippet)."
 2. Ask the user to paste the snippet from their provisioning email. It looks like:
    ```bash
-   KB_WORKER_URL="https://…workers.dev" KB_TOKEN="kb_…" KB_WRITE_TOKEN="kb_write_…" bash scripts/kb_setup.sh
+   # run from THIS skill's directory (see the note above):
+   bash scripts/kb_setup.sh --url "https://…workers.dev" --token "kb_…" [--write-token "kb_write_…"]
    ```
-   (`KB_WRITE_TOKEN` is optional — read-only is fine for search/get.)
+   The `--url/--token` flag form is exactly what the provisioning email ships;
+   env-var and positional forms also work. `--write-token` is optional — read-only
+   is fine for search/get. `kb_setup.sh` writes `.kb-config` and smoke-tests it.
 3. Run that snippet on the user's behalf, OR have them run it themselves. `kb_setup.sh` writes `.kb-config` (chmod 600) and runs a smoke-test against `/manifest` to confirm the token works before declaring success.
 4. Only after `kb_setup.sh` exits 0 should you continue with the original task.
 

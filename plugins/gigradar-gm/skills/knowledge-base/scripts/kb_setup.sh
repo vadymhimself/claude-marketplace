@@ -4,11 +4,15 @@
 # email). Run this once when first activating the skill. Re-run any time the
 # token rotates.
 #
-# Usage:
-#   # Option A: positional args (read token only)
+# Usage (any of these — use the script's real path, e.g. from the knowledge-base
+# skill directory: bash "<skill-dir>/scripts/kb_setup.sh" ...):
+#   # Option A: flags (the form the provisioning email ships)
+#   bash kb_setup.sh --url "https://…" --token "kb_…" [--write-token "kb_write_…"] [--role active]
+#
+#   # Option B: positional args
 #   bash kb_setup.sh <KB_WORKER_URL> <KB_TOKEN> [KB_WRITE_TOKEN]
 #
-#   # Option B: env vars (the format the provisioning email ships)
+#   # Option C: env vars
 #   KB_WORKER_URL=https://… KB_TOKEN=kb_… [KB_WRITE_TOKEN=kb_write_…] bash kb_setup.sh
 #
 # After this runs, every other script in scripts/ will pick up the values
@@ -18,10 +22,29 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TARGET="$HERE/../.kb-config"
 
-# Accept positional or env. Positional overrides env.
-URL="${1:-${KB_WORKER_URL:-}}"
-RTOK="${2:-${KB_TOKEN:-}}"
-WTOK="${3:-${KB_WRITE_TOKEN:-}}"
+# Accept flags (--url/--token/--write-token, the form the provisioning email
+# ships), positional args, OR env vars — whichever the user/agent pastes. Flags
+# and positional win over env. --role is accepted for compatibility and ignored
+# (the role is encoded server-side in the token, not in the config).
+URL="" ; RTOK="" ; WTOK="" ; POS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --url)                            URL="${2:-}";  shift 2;;
+    --url=*)                          URL="${1#*=}"; shift;;
+    --token)                          RTOK="${2:-}"; shift 2;;
+    --token=*)                        RTOK="${1#*=}"; shift;;
+    --write-token|--write_token)      WTOK="${2:-}"; shift 2;;
+    --write-token=*|--write_token=*)  WTOK="${1#*=}"; shift;;
+    --role)                           shift 2;;
+    --role=*)                         shift;;
+    --)                               shift; while [[ $# -gt 0 ]]; do POS+=("$1"); shift; done;;
+    -*)                               echo "kb_setup.sh: unknown flag '$1'" >&2; exit 64;;
+    *)                                POS+=("$1"); shift;;
+  esac
+done
+URL="${URL:-${POS[0]:-${KB_WORKER_URL:-}}}"
+RTOK="${RTOK:-${POS[1]:-${KB_TOKEN:-}}}"
+WTOK="${WTOK:-${POS[2]:-${KB_WRITE_TOKEN:-}}}"
 
 if [[ -z "$URL" || -z "$RTOK" ]]; then
   cat >&2 <<'USAGE'
