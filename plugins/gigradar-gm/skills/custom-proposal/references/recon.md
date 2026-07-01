@@ -31,8 +31,9 @@ WordPress mark) — not the brand. So:
    generic/platform icons** (WordPress, Webflow, a plain colored dot). A wrong logo
    is worse than none; the template handles a missing logo gracefully.
 4. If no headshot anywhere, use Clay enrichment
-   (`find-and-enrich-contacts-at-company`) to get a LinkedIn photo URL, else fall
-   back to the initials monogram (template default).
+   (`find-and-enrich-contacts-at-company`) to get a LinkedIn photo URL, else just leave
+   `photo` null — the template **auto-renders a clean initials monogram** from the
+   lead's name (blue-gradient circle), so a missing headshot degrades gracefully.
 5. **Resize before saving** so the inlined base64 stays small (the whole page is
    one self-contained file — a 1700px headshot bloats it to ~2 MB). Cap the photo
    at ~480px and the logo at ~256px: `sips -Z 480 in.jpg --out photo.jpg`. Then
@@ -41,9 +42,19 @@ WordPress mark) — not the brand. So:
    white-on-transparent (it'll vanish), recolor the wordmark to a dark ink
    (`#0a0f1f`) while preserving alpha, or use the lead's dark/full-color mark
    instead. Verify it's visible on white before using it.
+7. **Cloudflare-challenged sites** (common on agency sites): `curl`/WebFetch and
+   even a headless-Chrome dump get a 403 / JS-challenge and return no usable HTML.
+   Then: read the rendered page via the **Chrome-MCP / real browser** instead; for
+   the logo, fall back to the site's `og:image` / `apple-touch-icon` or a logo
+   service; for the photo, try Clay / LinkedIn. If nothing yields a real photo,
+   leave `photo` null and let the monogram render — that's fine.
 
 ## Cautions
 - LinkedIn blocks scrapers; Perplexity's index or the company's own About page are
   more reliable for bio facts.
 - Verify the true title — the proposal should address a founder as a founder.
 - Note honest gaps (headcount, etc.); don't invent.
+- **Never fabricate the lead's name.** If you only have a first name + initial
+  (e.g. "Adam W.") and can't confirm the surname from a real source, use the first
+  name + company — do NOT guess a last name. A wrong name on a premium proposal is
+  a dealbreaker.

@@ -62,3 +62,12 @@ across runs:
   Software Dev"; subcats "Web Development", "Digital Marketing", "Lead Generation &
   Telemarketing", "Video & Animation". Discover the real values with a `terms` agg
   on `metaJob.subCategoryName` before filtering.
+- **Recency window — anchor to the crawl, not the wall clock.** The index's newest
+  `metaJob.createdOn` can lag "today" by weeks. A hardcoded "last 60–90 days from
+  now" filter may silently return **zero**. First find the max `createdOn` (a `max`
+  agg, or sort desc + take the top hit), then window relative to THAT (e.g. the
+  trailing 30/90 days of *available* data). And keep the section-2 market-band
+  "/mo" figure **consistent with the window you queried** — derive it as
+  (jobs-in-window ÷ window-months). Don't label it vaguely ("since Aug") or put a
+  per-month rate in the hero next to a multi-month total in the band; a sharp
+  prospect will notice the mismatch.

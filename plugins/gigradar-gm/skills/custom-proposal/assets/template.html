@@ -810,7 +810,8 @@ var DATA = (function(){
 /* small DOM helpers */
 function _set(id,html){var el=document.getElementById(id); if(el!=null && html!=null) el.innerHTML=html;}
 function _txt(id,t){var el=document.getElementById(id); if(el!=null && t!=null) el.textContent=t;}
-function _img(id,src,alt){var el=document.getElementById(id); if(el!=null){ if(src!=null) el.setAttribute('src',src); if(alt!=null) el.setAttribute('alt',alt);} }
+function monogram(name){var w=(name||'').trim().split(/\s+/).filter(Boolean);var init=(((w[0]||'?')[0]||'?')+(w.length>1?(w[w.length-1][0]||''):'')).toUpperCase();var svg='<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140"><defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#216bef"/><stop offset="1" stop-color="#1852d3"/></linearGradient></defs><rect width="140" height="140" fill="url(#mg)"/><text x="70" y="70" font-family="Inter,Arial,sans-serif" font-size="56" font-weight="800" fill="#ffffff" text-anchor="middle" dominant-baseline="central">'+init+'</text></svg>';return 'data:image/svg+xml,'+encodeURIComponent(svg);}
+function _img(id,src,alt){var el=document.getElementById(id); if(el==null) return; if(src){el.setAttribute('src',src); el.style.display='';} else {el.style.display='none';} if(alt!=null) el.setAttribute('alt',alt);}
 function _esc(s){return (s==null?'':String(s));}
 
 /* ============== RENDER LEAD ============== */
@@ -827,7 +828,7 @@ function renderLead(){
   _txt('tbCompanyName', lead.companyName);
 
   /* ---- hero ---- */
-  _img('prepPhoto', lead.photo, lead.name||'');
+  _img('prepPhoto', lead.photo || monogram(lead.name), lead.name||'');
   _txt('prepName', lead.name);
   var roleHtml=_esc(lead.title);
   if(lead.logo) roleHtml+=' · <img class="prep-logo" src="'+lead.logo+'" alt=""> '+_esc(lead.companyName);
@@ -896,7 +897,7 @@ function renderLead(){
   /* ---- section 3: profile mockup ---- */
   _txt('profHeadline', pf.headline);
   _set('profIntro', pf.intro);
-  _img('profAvatar', pf.avatar, pf.name||'');
+  _img('profAvatar', pf.avatar || lead.photo || monogram(pf.name||lead.name), pf.name||'');
   var nm=_esc(pf.name);
   (pf.badges||[]).forEach(function(b){ nm+=' <span class="up-badge'+(b.topRated?' tr':'')+'">'+_esc(b.label)+'</span>'; });
   _set('profNm', nm);
