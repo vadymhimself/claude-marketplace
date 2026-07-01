@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deploy.sh <proposal.html> <slug>
-# Publishes a proposal to https://<slug>.via.gigradar.io (Cloudflare Worker + R2).
+# Publishes a proposal to https://via.gigradar.io/<slug> (Cloudflare Worker + R2).
 # The page auto-tracks engagement in PostHog (project GigRadar), keyed by the slug.
 #
 # Requires GIGRADAR_PROPOSAL_TOKEN in the environment — your personal
@@ -15,7 +15,7 @@ SLUG="${2:?usage: deploy.sh <proposal.html> <slug>   (e.g. satiesh-sheriff)}"
 
 # normalize slug: lowercase, spaces/underscores -> hyphens, strip other chars
 SLUG=$(printf '%s' "$SLUG" | tr '[:upper:]' '[:lower:]' | tr ' _' '--' | tr -cd 'a-z0-9-' | sed -E 's/-+/-/g;s/^-|-$//g')
-URL="https://${SLUG}.via.gigradar.io/"
+URL="https://via.gigradar.io/${SLUG}"
 
 code=$(curl -sS -o /tmp/gr_deploy_resp.json -w '%{http_code}' -X PUT "$URL" \
   -H "Authorization: Bearer ${GIGRADAR_PROPOSAL_TOKEN}" \

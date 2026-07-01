@@ -75,7 +75,7 @@ tool renders fresh-at-top, so use headless Chrome → PDF → read it):
 ```
 **Publish** to a shareable, tracked URL:
 ```bash
-scripts/deploy.sh <proposal.html> <lead-slug>   # → https://<lead-slug>.via.gigradar.io
+scripts/deploy.sh <proposal.html> <lead-slug>   # → https://via.gigradar.io/<lead-slug>
 ```
 This uploads to the `gigradar-proposals` Cloudflare Worker (R2-backed) and needs
 your `GIGRADAR_PROPOSAL_TOKEN` (per-user push token — provision via
