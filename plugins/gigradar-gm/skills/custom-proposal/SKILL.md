@@ -90,9 +90,12 @@ live host, never on local preview or PDF.)
 - **No low-baller opportunities.** Every job shown must be a verified, high-spend
   US client with a real budget and an expansion path. A sharp agency will judge
   GigRadar by the worst job on the page.
-- **Use the lead's real face + logo.** A monogram placeholder is a fallback, not
-  the goal. If the site has nothing usable, try Clay enrichment for a LinkedIn
-  photo before settling.
+- **A real founder headshot is REQUIRED — not optional.** A monogram reads as
+  templated and isn't premium; `build.py` **refuses to build** without `lead.photo`.
+  Exhaust the escalation ladder in `references/recon.md` (site via a **real browser**
+  for Cloudflare-blocked pages → LinkedIn → Upwork profile picture → Clay). If none
+  exists after all of that, stop and get one manually — don't ship without it. Also
+  use the real company logo (recolor a white-on-transparent mark so it shows).
 - **Be honest in the numbers.** The calculator is a projection (label it). Don't
   fake per-client star ratings on case studies — GigRadar only has a site-wide
   Trustpilot score. Don't show a wrong logo (e.g. a site's WordPress favicon).

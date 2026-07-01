@@ -31,9 +31,8 @@ WordPress mark) — not the brand. So:
    generic/platform icons** (WordPress, Webflow, a plain colored dot). A wrong logo
    is worse than none; the template handles a missing logo gracefully.
 4. If no headshot anywhere, use Clay enrichment
-   (`find-and-enrich-contacts-at-company`) to get a LinkedIn photo URL, else just leave
-   `photo` null — the template **auto-renders a clean initials monogram** from the
-   lead's name (blue-gradient circle), so a missing headshot degrades gracefully.
+   (`find-and-enrich-contacts-at-company`) to get a LinkedIn photo URL. **A real headshot is mandatory** (see the callout
+   below) — do not settle for a monogram.
 5. **Resize before saving** so the inlined base64 stays small (the whole page is
    one self-contained file — a 1700px headshot bloats it to ~2 MB). Cap the photo
    at ~480px and the logo at ~256px: `sips -Z 480 in.jpg --out photo.jpg`. Then
@@ -46,8 +45,25 @@ WordPress mark) — not the brand. So:
    even a headless-Chrome dump get a 403 / JS-challenge and return no usable HTML.
    Then: read the rendered page via the **Chrome-MCP / real browser** instead; for
    the logo, fall back to the site's `og:image` / `apple-touch-icon` or a logo
-   service; for the photo, try Clay / LinkedIn. If nothing yields a real photo,
-   leave `photo` null and let the monogram render — that's fine.
+   service; for the photo, try Clay / LinkedIn / their Upwork profile picture. **Do not ship
+   without a real photo** — see the mandatory-avatar callout below.
+
+### The founder avatar is MANDATORY
+
+A real headshot is the strongest "this was made for me" signal — a monogram reads
+as templated and is **not acceptable** for a premium proposal. `build.py` **refuses
+to build** without `lead.photo`. Exhaust this ladder before giving up:
+
+1. The lead's **site** team/about page. If Cloudflare blocks curl/WebFetch (403 or
+   a JS challenge), open it in a **real browser** (Chrome MCP) and read the `<img>`
+   src — agency sites are frequently CF-protected, so expect this.
+2. Their **LinkedIn** profile photo, or their **Upwork profile picture** (public CDN).
+3. **Clay enrichment** (`find-and-enrich-contacts-at-company`) → a LinkedIn photo URL.
+4. A web/image search for "<name> <company>".
+
+If, after all of that, no real photo exists, **stop and escalate to a human** to
+supply one — do not ship a monogram. The `build.py --allow-monogram` override
+exists only for a genuinely person-less agency brand.
 
 ## Cautions
 - LinkedIn blocks scrapers; Perplexity's index or the company's own About page are

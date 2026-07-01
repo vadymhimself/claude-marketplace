@@ -113,11 +113,22 @@ def main():
     ap.add_argument("--library", default=os.path.join(here, "..", "assets", "case-studies", "case-studies.json"))
     ap.add_argument("--cases", type=int, default=6)
     ap.add_argument("--base-dir", default=None)
+    ap.add_argument("--allow-monogram", action="store_true", help="allow building without a real lead photo (only for a genuinely person-less agency)")
     a = ap.parse_args()
 
     with open(a.lead) as f:
         lead = json.load(f)
     base_dir = a.base_dir or os.path.dirname(os.path.abspath(a.lead))
+
+    # A real founder headshot is mandatory for a premium proposal — refuse to ship
+    # a monogram-only page. Recon must supply lead.photo (references/recon.md lists
+    # the escalation: site via real browser, LinkedIn, Upwork profile pic, Clay).
+    _photo = (lead.get("lead") or {}).get("photo")
+    if not _photo and not a.allow_monogram:
+        sys.exit("ERROR: real avatar required — lead.photo is empty.\n"
+                 "  Recon must find a real headshot before building (see references/recon.md).\n"
+                 "  Refusing to ship a monogram proposal. Override with --allow-monogram\n"
+                 "  ONLY for a genuinely person-less agency brand.")
 
     # 1) case studies (unless the lead already provides them explicitly)
     if "caseStudies" not in lead or not lead["caseStudies"]:
