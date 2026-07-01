@@ -57,7 +57,11 @@ to build** without `lead.photo`. Exhaust this ladder before giving up:
 1. The lead's **site** team/about page. If Cloudflare blocks curl/WebFetch (403 or
    a JS challenge), open it in a **real browser** (Chrome MCP) and read the `<img>`
    src — agency sites are frequently CF-protected, so expect this.
-2. Their **LinkedIn** profile photo, or their **Upwork profile picture** (public CDN).
+2. Their **LinkedIn** profile photo, or their **Upwork profile picture**. On a
+   LinkedIn profile (even the logged-out authwall), the owner's photo is the
+   **topmost** `profile-displayphoto` image on the page — NOT the "People also
+   viewed" faces (a common mistake). The `media.licdn.com/...profile-displayphoto`
+   URL is a public CDN link, fetchable with `curl` outside the browser.
 3. **Clay enrichment** (`find-and-enrich-contacts-at-company`) → a LinkedIn photo URL.
 4. A web/image search for "<name> <company>".
 
