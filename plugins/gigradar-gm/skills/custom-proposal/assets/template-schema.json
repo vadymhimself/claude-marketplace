@@ -1,0 +1,153 @@
+{
+  "$comment": "Schema/contract for the custom-proposal template. The build step replaces {{LEAD_JSON}} in template.html with one JSON object matching this shape. Every field below lists: path, type, description, and the Remote-Guyana worked-example value (base64 data URIs truncated to 'data:image/...;base64,<...>'). Inline HTML (e.g. <b>) is allowed only in fields marked (html); other text fields are plain text. For ALL text you may write literal Unicode (em-dash, &, apostrophes) OR HTML entities — build.py decodes entities so both render correctly. Do NOT put tags in non-(html) fields. caseStudies/opportunities are the GigRadar-library + market data; everything else is lead-specific.",
+
+  "serviceTags": { "type": "array<string>", "desc": "TOP-LEVEL. The lead's service niches, from the case-studies taxonomy (lead-gen, cold-email, email-marketing, revops, crm, data-analytics, web-development, software-development, mobile-development, design-ux, ecommerce, ai-automation, no-code, ppc-ads, seo, content, video-creative, bookkeeping-finance, va-admin-support, customer-support, bpo-staffing, market-research, marketing-agency, consulting, automation). build.py uses these to auto-select the most relevant case studies by tag overlap — set 3-6 that best describe the lead. Tag generously; sparse tags make the grid fall back to library order.", "example": ["revops","cold-email","email-marketing","lead-gen","crm","appointment-setting"] },
+
+  "meta": {
+    "pageTitle":        { "type": "string", "desc": "Browser tab + <title>.", "example": "Remote Guyana × GigRadar — Your Upwork Client-Acquisition Engine" },
+    "preparedDate":     { "type": "string", "desc": "Footer 'prepared <X>' line.", "example": "June 2026" },
+    "emailReplyLine":   { "type": "string (html)", "desc": "Final-CTA small print under the book button.", "example": "Prefer email? Reply to Roman's thread and we'll send times. This map was built specifically for Remote Guyana." }
+  },
+
+  "lead": {
+    "companyName":   { "type": "string", "desc": "Lead's company; shown in topbar, hero role, footer.", "example": "Remote Guyana" },
+    "logo":          { "type": "string (data-uri)", "desc": "Company logo (png/svg/jpeg base64). Used in topbar, hero role inline, standing card.", "example": "data:image/png;base64,<...>" },
+    "photo":         { "type": "string (data-uri)", "desc": "Lead headshot (jpeg/png base64). Used in hero prepared-row AND profile mockup avatar.", "example": "data:image/jpeg;base64,<...>" },
+    "name":          { "type": "string", "desc": "Lead full name (hero prepared-for).", "example": "Satiesh Sheriff" },
+    "title":         { "type": "string", "desc": "Lead role title (hero role line, before company).", "example": "Founder & CEO" },
+    "preparedMonth": { "type": "string", "desc": "Trailing date in the hero role line.", "example": "June 2026" }
+  },
+
+  "hero": {
+    "headlineHighlight": { "type": "string", "desc": "Highlighted (gradient) portion of the H1 — usually a number/stat.", "example": "3,847 US companies a month" },
+    "headlineRest":      { "type": "string", "desc": "Remainder of the H1 sentence (rendered after the highlight + a space).", "example": "hire for what Remote Guyana does. You're just not in the room yet." },
+    "subhead":           { "type": "string (html)", "desc": "Hero sub-paragraph; <b> allowed.", "example": "You already win US clients the hard way — cold outreach. But these companies have <b>already posted a budget...</b> ..." },
+    "stats": {
+      "type": "array<object>", "desc": "Exactly 4 hero stat tiles.",
+      "items": {
+        "num":   { "type": "string", "desc": "Big number.", "example": "3,847" },
+        "unit":  { "type": "string", "desc": "Accent suffix (e.g. /mo, %, M, M+).", "example": "/mo" },
+        "label": { "type": "string", "desc": "Caption under the number.", "example": "US lead-gen jobs posted on Upwork last month" }
+      }
+    }
+  },
+
+  "standing": {
+    "headline":      { "type": "string", "desc": "Section 1 H2.", "example": "An operator-led GTM shop with a real delivery bench — and no presence where buyers are actively searching." },
+    "intro":         { "type": "string (html)", "desc": "Section 1 lead paragraph.", "example": "Remote Guyana sells the exact services US B2B teams hire for on Upwork every day..." },
+    "companyName":   { "type": "string", "desc": "Company name in the standing card header (usually == lead.companyName).", "example": "Remote Guyana" },
+    "locationLine":  { "type": "string", "desc": "Location / served-market / founded line under the company name.", "example": "Georgetown, Guyana · serving US B2B / SaaS teams · founded 2024" },
+    "tagline":       { "type": "string", "desc": "Italic pull-quote tagline.", "example": "\"Capable offshore talent, with the accountability structure most providers don't offer.\"" },
+    "servicesIntro": { "type": "string (html)", "desc": "Intro line above the services list.", "example": "Your GTM &amp; RevOps arm — the services with the strongest Upwork demand:" },
+    "services": {
+      "type": "array<object>", "desc": "~6 services; each rendered as '<b>name</b> — desc'.",
+      "items": {
+        "name": { "type": "string", "desc": "Bold service name.", "example": "Clay Workflows" },
+        "desc": { "type": "string (html)", "desc": "Service description.", "example": "ICP list building, multi-source &amp; signal-driven enrichment (hiring, funding, job-change signals)." }
+      }
+    },
+    "edge":    { "type": "object", "desc": "First callout block.", "title": { "type": "string (html)", "example": "🎯 Your edge translates perfectly" }, "text": { "type": "string (html)", "example": "Clay Agency Partner. ~10 years in B2B sales ops..." } },
+    "missing": { "type": "object", "desc": "Second callout block.", "title": { "type": "string (html)", "example": "📍 The channel you're missing" }, "text": { "type": "string (html)", "example": "Buyers on Upwork have already decided to hire..." } },
+    "chips":     { "type": "array<string>", "desc": "Skill chips under the second callout.", "example": ["Clay","Cold Email","HubSpot","Lead Gen","Appointment Setting","RevOps"] },
+    "gapBanner": { "type": "string (html)", "desc": "Dark banner copy at the bottom of section 1.", "example": "Right now these are <b>lost opportunities</b> — US companies hiring for your exact services... Section 2 is the room." }
+  },
+
+  "opportunitiesSection": {
+    "headline":   { "type": "string", "desc": "Section 2 H2.", "example": "The high-value jobs you're losing — not the low-baller noise." },
+    "intro":      { "type": "string (html)", "desc": "Section 2 lead paragraph.", "example": "We searched GigRadar's live index of the Upwork crawl..." },
+    "marketBand": {
+      "type": "array<object>", "desc": "4 market-band stat cells.",
+      "items": {
+        "n":     { "type": "string", "desc": "Big number.", "example": "6,685" },
+        "gold":  { "type": "boolean", "desc": "If true, number renders in the accent (gold/blue) color.", "example": true },
+        "label": { "type": "string", "desc": "Caption.", "example": "average lifetime spend per client on Upwork" }
+      }
+    },
+    "lowballNote":     { "type": "string (html)", "desc": "Dashed honest-caveat note above the opp grid.", "example": "⚠️ <b>Honest caveat:</b> the median Upwork post in this category is junk..." },
+    "visibleCount":    { "type": "number", "desc": "How many opportunities show before the 'Show more' button hides the rest (opp index >= this gets class opp-more).", "example": 4 },
+    "moreButtonLabel": { "type": "string", "desc": "Label of the 'show more' button.", "example": "Show 5 more opportunities ↓" },
+    "moreNote":        { "type": "string (html)", "desc": "Note under the grid about additional opportunities.", "example": "Plus 5 more vetted opportunities in the full set. New ones surface daily..." }
+  },
+
+  "opportunities": {
+    "type": "array<object>", "desc": "Live Upwork job cards (rendered by the existing OPPS map). Order matters; first `visibleCount` show by default.",
+    "items": {
+      "t":     { "type": "string", "desc": "Job title.", "example": "Clay / ZoomInfo / CRM Lead Operations Expert" },
+      "cat":   { "type": "string", "desc": "Category eyebrow (shown after 'Upwork ·').", "example": "Lead Gen · Clay" },
+      "amt":   { "type": "string", "desc": "Budget amount.", "example": "$15–45" },
+      "typ":   { "type": "string", "desc": "Budget type/suffix.", "example": "/hr" },
+      "spent": { "type": "string", "desc": "Client lifetime spend.", "example": "$7.9M" },
+      "fb":    { "type": "string", "desc": "Client feedback score.", "example": "4.94" },
+      "hires": { "type": "string", "desc": "Client total hires.", "example": "337" },
+      "ind":   { "type": "string", "desc": "Industry chip; empty string hides it.", "example": "Media" },
+      "url":   { "type": "string (url)", "desc": "Upwork job URL.", "example": "https://www.upwork.com/jobs/~022060455263297201854" },
+      "d":     { "type": "string (html)", "desc": "Short job description.", "example": "Build, clean &amp; enrich CRM-ready B2B prospect data..." },
+      "ltv":   { "type": "string (html)", "desc": "'Why it fits → how it expands' rationale.", "example": "Highest spender in the set ($7.9M)..." }
+    }
+  },
+
+  "twinsSection": {
+    "headline":     { "type": "string (html)", "desc": "Twins section H2.", "example": "These aren’t strangers — they’re the clients you already win, posting on Upwork." },
+    "intro":        { "type": "string (html)", "desc": "Twins section lead paragraph.", "example": "The work that delivered for Clay BPO, First Hyperion and Rely Health..." },
+    "outcomes":     { "type": "array<object>", "desc": "4 outcome stat cells.", "items": { "n": { "type": "string", "example": "5.3×" }, "label": { "type": "string", "example": "reply-rate lift after rebuilding enrichment workflows" } } },
+    "outcomesSrc":  { "type": "string (html)", "desc": "Source line under the outcome stats.", "example": "Real outcomes from Remote Guyana’s client work, published on remoteguyana.com — not projections." },
+    "twins": {
+      "type": "array<object>", "desc": "Client-vs-Upwork-job 'same play' twin cards.",
+      "items": {
+        "clientLogo":     { "type": "string (data-uri) | null", "desc": "Client brand logo; if null, clientWordmark text is used instead.", "example": "data:image/png;base64,<...>" },
+        "clientWordmark": { "type": "string | null", "desc": "Text wordmark when clientLogo is null.", "example": "First Hyperion" },
+        "clientLogoAlt":  { "type": "string", "desc": "Alt text for clientLogo.", "example": "Clay" },
+        "clientTitle":    { "type": "string (html)", "desc": "Client engagement title.", "example": "Clay BPO — enterprise table monitoring" },
+        "clientRole":     { "type": "string", "desc": "Client engagement role/type.", "example": "Ongoing managed Clay service" },
+        "clientDesc":     { "type": "string (html)", "desc": "What the lead did for this client.", "example": "You built and run a master Clay table..." },
+        "jobTitle":       { "type": "string (html)", "desc": "The matching live Upwork job title.", "example": "Clay / ZoomInfo / CRM Lead Operations Expert" },
+        "jobRole":        { "type": "string (html)", "desc": "Job budget/spend/score line.", "example": "$15–45/hr · $7.9M client spend · 4.94★" },
+        "jobDesc":        { "type": "string (html)", "desc": "Job quote/description.", "example": "“Build, clean, enrich &amp; analyse CRM-ready B2B prospect data...”" },
+        "jobUrl":         { "type": "string (url)", "desc": "Upwork job URL.", "example": "https://www.upwork.com/jobs/~022060455263297201854" },
+        "foot":           { "type": "string (html)", "desc": "The 'link' footer tying the twin together.", "example": "You already operate this exact Clay system. <b>The only difference...</b>" }
+      }
+    }
+  },
+
+  "profile": {
+    "headline":     { "type": "string", "desc": "Section 3 (profile mockup) H2.", "example": "This is how you'd show up to those clients." },
+    "intro":        { "type": "string (html)", "desc": "Section 3 lead paragraph.", "example": "A profile engineered around the opportunities above..." },
+    "avatar":       { "type": "string (data-uri)", "desc": "Profile avatar (usually same base64 as lead.photo).", "example": "data:image/jpeg;base64,<...>" },
+    "name":         { "type": "string", "desc": "Profile display name.", "example": "Satiesh S." },
+    "badges":       { "type": "array<object>", "desc": "Status badges next to the name.", "items": { "label": { "type": "string", "example": "★ Top Rated Plus" }, "topRated": { "type": "boolean", "desc": "If true, uses the gradient 'tr' badge style.", "example": true } } },
+    "profileTitle": { "type": "string (html)", "desc": "Profile headline/title.", "example": "GTM Engineer · Clay &amp; Outbound Systems · RevOps for US B2B Teams" },
+    "meta":         { "type": "array<string (html)>", "desc": "Meta row chips (location, JSS, partner status); <b> allowed.", "example": ["📍 Georgetown, GY <b>(US-EST aligned)</b>","🕐 100% <b>Job Success</b>","✅ <b>Clay</b> Agency Partner"] },
+    "rate":         { "type": "string", "desc": "Hourly rate (the '/hr' suffix is added by the template).", "example": "$70" },
+    "rateSub":      { "type": "string", "desc": "Sub-text under the rate.", "example": "+ fixed-bid projects" },
+    "kpis":         { "type": "array<object>", "desc": "4 KPI tiles (earned / contracts / JSS / repeat).", "items": { "v": { "type": "string", "example": "$120K+" }, "navy": { "type": "boolean", "desc": "If true, value uses navy color instead of green.", "example": false }, "k": { "type": "string", "example": "Total earned (proj. 6mo)" } } },
+    "overview":     { "type": "string (html)", "desc": "Profile overview paragraph; <b> allowed.", "example": "I build the outbound &amp; RevOps systems that fill US B2B pipelines..." },
+    "skills":       { "type": "array<object>", "desc": "Skill tags; hot=true highlights it.", "items": { "name": { "type": "string", "example": "Clay" }, "hot": { "type": "boolean", "example": true } } },
+    "workHistory":  { "type": "array<object>", "desc": "Work-history feedback items.", "items": { "title": { "type": "string (html)", "example": "Clay enrichment + CRM-ready prospect system, B2B sales team" }, "stars": { "type": "string", "example": "★★★★★ 5.00" }, "quote": { "type": "string", "example": "\"Turned our messy lists into a real data engine...\"" }, "amount": { "type": "string", "example": "$6,400" }, "sub": { "type": "string", "example": "→ ongoing retainer" } } },
+    "mockFlag":     { "type": "string (html)", "desc": "Disclaimer under the mock profile card.", "example": "Illustrative projection of your Upwork profile after ~6 months on GigRadar..." }
+  },
+
+  "calculator": {
+    "$comment": "Drives the earnings-calculator sliders + scenario presets. The calculator MATH/JS is fixed in the template; only these defaults are injected.",
+    "nicheLabel":        { "type": "string", "desc": "Context label shown next to the reply-rate slider for the 'Likely' scenario.", "example": "(GigRadar · your niche)" },
+    "proposalsPerMonth": { "type": "number", "desc": "Default 'proposals/mo' slider value (range 100–400).", "example": 250 },
+    "replyRate":         { "type": "object", "desc": "Reply-rate % for the three scenario buttons.", "cons": { "type": "number", "example": 9.4 }, "likely": { "type": "number", "desc": "Also the initial reply-rate slider value (range 4–19).", "example": 13 }, "best": { "type": "number", "example": 18 } },
+    "replyToCall":       { "type": "number", "desc": "Default reply→booked-call % (range 15–40).", "example": 30 },
+    "callToClose":       { "type": "number", "desc": "Default booked-call→won % (range 15–45).", "example": 30 },
+    "avgContractValue":  { "type": "number", "desc": "Default avg first-contract value $ (range 2000–30000).", "example": 6000 },
+    "gigradarCost":      { "type": "number", "desc": "Default GigRadar cost/mo $ (range 1300–3900).", "example": 1300 }
+  },
+
+  "caseStudies": {
+    "type": "array<object>", "desc": "GigRadar case-study cards (the dark grid near the bottom). Rendered by the CASES map. Content is GigRadar's library, not lead-specific, but still injected so it can be curated per lead.",
+    "items": {
+      "avatar":   { "type": "string (data-uri)", "desc": "Customer headshot (avif/webp/jpeg/png base64).", "example": "data:image/avif;base64,<...>" },
+      "name":     { "type": "string (html)", "desc": "Customer name.", "example": "Gavin Hewitson" },
+      "company":  { "type": "string", "desc": "Customer company.", "example": "In-Box Email Marketing" },
+      "logo":     { "type": "string (data-uri) | null", "desc": "Company logo; null hides the logo slot.", "example": "data:image/jpeg;base64,<...>" },
+      "result":   { "type": "string", "desc": "Headline result.", "example": "$30K+ · 25 jobs" },
+      "subtitle": { "type": "string", "desc": "One-line description.", "example": "Email-marketing agency — went from $0 to $30K+ on Upwork." },
+      "tag":      { "type": "string (html)", "desc": "Footer tag/category.", "example": "Email Marketing" },
+      "url":      { "type": "string (url)", "desc": "Case-study URL.", "example": "https://gigradar.io/case-studies/inbox-email-marketing" }
+    }
+  }
+}
