@@ -42,6 +42,7 @@ All configuration is inferred from the user's natural-language prompt — there 
 
 - **`/market-research`** — run a full market-research pass for an arbitrary time window (or subset of it — category / subcategory / skill / team narrowing all supported).
 - **`/customer-audit`** — single-team deep-dive audit: retro-first (pre-GigRadar + historical wins), competitive deep-dive (cohort compare + ES metajob KNN peer look-alikes with subagent-dispatched per-competitor CL analysis), chat transcripts, Win/Loss CL comparison, auto-bidding aggregates, three-tier WINS/OKAY/CRITICAL exec summary. Reply rate + $/reply are north-star. See `skills/customer-audit/SKILL.md`.
+- **`/stripe-billing`** — resolve a team's Stripe customer id(s) from Mongo (a team can have up to three, one per product), then fetch subscriptions (with statuses) and invoices (with statuses/amounts/line items) via the read-only `stripe-billing-proxy` Cloudflare Worker — no raw Stripe key ever touches the session. See `skills/stripe-billing/SKILL.md`.
 
 ## Installation
 
@@ -64,6 +65,8 @@ The plugin reads credentials from the environment — no secrets are bundled.
 | `ES_INDEX` | no | `metajob-all` | ES index alias (renamed from `metajob` in May 2026 — older deployments may need `ES_INDEX=metajob`) |
 | `MONGO_URI` | **yes** | — | Full Mongo URI incl. creds + `?authSource=admin` |
 | `MONGO_DB` | no | `gigradar-dev` | Mongo database |
+| `STRIPE_BILLING_PROXY_URL` | no | `https://gigradar-stripe-proxy.scalifier.workers.dev` | `/stripe-billing` skill only — proxy Worker base URL |
+| `STRIPE_BILLING_PROXY_KEY` | only for `/stripe-billing` | — | Shared proxy key (not a Stripe key), rotatable anytime — ask a GigRadar admin |
 
 Set these in the shell the skill runs scripts from. Example:
 ```bash
@@ -143,6 +146,13 @@ gigradar-gm/
             ├── scanners.md                # scanner schema + biddingStrategy subtypes
             ├── cover-letters.md           # CL generation flow + reading heuristics
             └── output-examples.md         # three-tier exec-summary layout
+    └── stripe-billing/
+        ├── SKILL.md                       # skill entry point
+        ├── scripts/
+        │   ├── resolve_customer_ids.py    # team -> Stripe customer id(s) (Mongo teams lookup)
+        │   └── get_billing.sh             # customer id -> subscriptions/invoices via the proxy
+        └── references/
+            └── proxy-reference.md         # proxy contract, auth, example payloads, field guide
 ```
 
 ## Maintenance — keep the data reference alive
@@ -168,6 +178,7 @@ Hardened customer-audit scripts after the second customer run (Interactivated So
 - **phase4_winloss.py** — per-scanner checkpoint to `OUT` so reruns resume cleanly from interruption.
 - **merge_ai_judgments.py** — supports `judgment_NN.json` positional filenames (subagent dispatch standard) in addition to legacy `NN_<prefix>.json`.
 - **audit-playbook.md** — added gotchas §17 (agency-profile gigradarTeamId shape varies), §18 (sort hint required on proposals), §19 (preserve insertion order, don't sort alphabetically), §20 (sandbox pyOpenSSL fix). Strengthened §10 with the leads.chats string-vs-ObjectId + messages-have-no-team-id finding.
+- `0.7.0` — Added `/stripe-billing` skill: resolves a team's Stripe customer id(s) from `teams` (up to three, one per product — `subscription`/`apiSubscription`/`profilesSubscription`) via `resolve_customer_ids.py`, then fetches subscriptions/invoices through the read-only `stripe-billing-proxy` Cloudflare Worker (`get_billing.sh`) — no raw Stripe secret key is ever required or exposed to the skill. Extended the canonical `references/data-reference.md` §7 (Billing) with the exact `<key>.stripe.customer` field paths and a new cookbook entry §10.J. E2E-verified against 5 live prod teams spanning all three products before merge.
 
 ## Questions / ownership
 
