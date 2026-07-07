@@ -37,6 +37,19 @@ skill's `resolve_customer_ids.py` implements exactly that lookup. Always resolve
 before answering "what has this team paid" — a team can be active on `leads` and canceled
 on `profiles` at the same time, and reporting only one product's number is misleading.
 
+## Step 0 — check credentials before doing anything else
+
+Run `[ -n "$MONGO_URI" ] && echo mongo:ok; [ -n "$STRIPE_BILLING_PROXY_KEY" ] && echo proxy:ok`.
+
+If either is missing: **stop and ask the user directly** for the missing value(s) — do not
+guess, do not fall back to a different Mongo URI or proxy key you've seen elsewhere, do not
+silently skip the check and let the script fail three steps later. `MONGO_URI` is the same
+credential used across every skill in this plugin, so if the user has already provided it in
+this session for another skill, reuse it. `STRIPE_BILLING_PROXY_KEY` is specific to this skill
+and worker — if the user hasn't given it and doesn't say where to find it, ask "what's the
+`stripe-billing-proxy` key?" rather than inventing one or trying `sk_live_...`/`sk_test_...`
+values (this skill never uses a raw Stripe key at all — see "What NOT to do" below).
+
 ## Steps
 
 1. **Parse the team identifier** from the user's request: Mongo `_id` (24-char ObjectId),
@@ -79,6 +92,9 @@ on `profiles` at the same time, and reporting only one product's number is misle
 - **Do NOT treat this as a market-wide billing tool.** For aggregate revenue/MRR analysis
   across many teams, that's a different job (raw Mongo `usage`/`teams` aggregation, not this
   per-customer proxy) — this skill is for one team at a time.
+- **Do NOT guess, reuse-from-memory, or fabricate `STRIPE_BILLING_PROXY_KEY`.** If Step 0
+  shows it's unset, ask the user — don't try old keys you recall from a prior session (it's
+  rotatable, so a stale one will just 401) and don't ever substitute a raw Stripe key instead.
 
 ## Required env vars
 
