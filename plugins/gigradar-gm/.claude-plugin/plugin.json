@@ -1,6 +1,6 @@
 {
   "name": "gigradar-gm",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "GigRadar market research & growth insights \u2014 retro-first customer audits with peer look-alike KNN collaborative-filtering, plus Upwork job-market analysis and reply-rate benchmarks for GM, Growth, and Success Manager workflows. Ships with a private Knowledge Base consumer skill (~580 files: 133K proposals' worth of cover-letter/bidding insights, 59 case studies, the Agency Success course, 396 Help Center articles). Every claim produced by skills in this plugin must be fact-checked against the KB \u2014 read the plugin's top-level README before invoking any skill.",
   "author": {
     "name": "GigRadar"
@@ -12,6 +12,8 @@
     "reply-rate",
     "success-manager",
     "growth",
-    "proposal"
+    "proposal",
+    "billing",
+    "stripe"
   ]
 }

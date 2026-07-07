@@ -290,10 +290,34 @@ Bridge: `leads.chats.upworkRoomUid` = `upwork.messages.rooms.roomId`. `leads.cha
 
 ## 7. Billing
 
-No dedicated collection — lives inside `teams`. Stripe subscription objects cached under:
-- `teams.subscription.stripe` — core proposal product
-- `teams.apiSubscription` — API product
-- `teams.profilesSubscription` — Profiles product
+No dedicated collection — lives inside `teams`. Stripe subscription objects (full Stripe API
+`Subscription` payloads, cached verbatim) sit under three independent product keys:
+- `teams.subscription.stripe` — core proposal product (`leads`)
+- `teams.apiSubscription.stripe` — API product
+- `teams.profilesSubscription.stripe` — Profiles product
+
+**A team can have up to THREE distinct Stripe customer ids — one per product, not one per team.**
+The Stripe `Customer` id lives at `<key>.stripe.customer` on each:
+
+```
+teams.subscription.stripe.customer          // leads product cus_...
+teams.apiSubscription.stripe.customer       // api product cus_...
+teams.profilesSubscription.stripe.customer  // profiles product cus_...
+```
+
+These are frequently **different** `cus_...` values for the same team (each product enrolls
+the team under its own Stripe Customer object). Never assume a single customer id represents
+"the team's billing" — always resolve all three before answering a billing question, and treat
+a null one as "no subscription on that product" (not "no Stripe account").
+
+Verified live 2026-07-07: `db.teams.findOne({"subscription.stripe.customer": {$exists: true, $ne: null}}, {name:1, "subscription.stripe.customer":1, "subscription.stripe.status":1})` returns e.g. `{name: "<team email>", subscription: {stripe: {customer: "cus_...", status: "active"}}}`. Also present separately: `users.stripeCustomer` (full Stripe `Customer` object, not just the id) — a per-user Stripe identity distinct from any of the three team-product customers above; rarely what you want for a billing audit.
+
+**Read access without a raw Stripe key**: use the `stripe-billing` skill (`skills/stripe-billing/`)
+to fetch a resolved customer's subscriptions/invoices through the read-only
+`stripe-billing-proxy` Worker — it never requires (or exposes) the live `sk_live_...` secret.
+Query cookbook: resolve all three customer ids for a team, then hand each non-null one to the
+proxy's `/subscriptions` and `/invoices` endpoints. See `skills/stripe-billing/SKILL.md` and
+`skills/stripe-billing/references/proxy-reference.md` for the field-by-field response guide.
 
 Per-algorithm metered usage is billed through Stripe meters. Current algorithm types: `Template`, `Sardor`, `Laziza` (per `AutoBidderType`). Meter IDs, price IDs, and default per-proposal costs are hardcoded in `gigradar-definitions/billing/index.ts`. Intervals: `Weekly`, `Monthly`, `Quarterly`, `SemiAnnual`, `Annual`.
 
@@ -470,6 +494,24 @@ db.usage.aggregate([
 db["jobs.ledger"].countDocuments({ feedType: "US", collected: false })
 // uses idx_feedType_collected_createdAt
 ```
+
+### J. Resolve a team's Stripe customer id(s) (all three products)
+
+```js
+db.teams.findOne(
+  { _id: ObjectId("<teamId>") },  // or { name: "<email>" }
+  {
+    name: 1,
+    "subscription.stripe.customer": 1, "subscription.stripe.status": 1,
+    "apiSubscription.stripe.customer": 1, "apiSubscription.stripe.status": 1,
+    "profilesSubscription.stripe.customer": 1, "profilesSubscription.stripe.status": 1,
+  }
+)
+```
+
+Feed each non-null `.customer` into the `stripe-billing` skill's proxy lookup (see §7) to get
+live subscriptions/invoices without a raw Stripe key. `skills/stripe-billing/scripts/resolve_customer_ids.py`
+wraps exactly this query.
 
 ---
 
