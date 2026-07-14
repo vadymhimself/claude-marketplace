@@ -461,12 +461,86 @@ footer .gr-foot{height:26px;width:auto}
 .modal-fallback{flex-shrink:0;text-align:center;font-size:12px;color:var(--slate-light);padding:8px;border-top:1px solid var(--border);text-decoration:none}
 .modal-fallback:hover{color:var(--blue)}
 @media print{.modal{display:none !important}}
+/* ===== SECTION 7 — INTERACTIVE PROPOSAL TOOL ===== */
+.ptool{background:linear-gradient(180deg,#f4f8ff,#e8f0ff);position:relative;overflow:hidden}
+.pt-explain{max-width:900px;margin:-18px 0 30px;font-size:15px;line-height:1.55;color:var(--slate);background:#fff;border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:15px 20px;box-shadow:var(--shadow)}
+.pt-explain b{color:var(--navy)}
+.pt-tool{background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow-lg);overflow:hidden}
+.pt-grid{display:grid;grid-template-columns:1fr 76px 1fr}
+.pt-col{padding:24px 26px;min-width:0}
+.pt-left{background:linear-gradient(180deg,#ffffff,#fbfcff)}
+.pt-right{background:linear-gradient(180deg,#f7f9fe,#eef4ff)}
+.pt-col-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.pt-col-tag{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+.pt-tag-gr{color:var(--blue-deep)}
+.pt-tag-uw{color:#14a800}
+.pt-gr-ico{width:19px;height:19px;color:var(--blue);flex-shrink:0}
+.pt-switch{display:inline-flex;flex-wrap:wrap;gap:3px;max-width:100%;background:var(--blue-50);border:1px solid var(--border);border-radius:16px;padding:4px}
+.pt-switch button{border:none;background:transparent;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--slate);padding:6px 13px;border-radius:999px;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s;white-space:nowrap}
+.pt-switch button:hover{color:var(--navy)}
+.pt-switch button.on{background:#fff;color:var(--blue-deep);box-shadow:0 1px 5px rgba(16,42,90,.14)}
+.pt-job-switch{background:#eaeef6}
+.pt-job-switch button.on{background:var(--navy);color:#fff;box-shadow:0 2px 7px rgba(10,15,31,.28)}
+.pt-letter{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px 24px;font-size:14.5px;line-height:1.62;color:#2a3448;box-shadow:inset 0 1px 0 #fff;min-height:236px}
+.pt-letter p{margin:0 0 12px}.pt-letter p:last-child{margin-bottom:0}
+.pt-letter .greet{font-weight:700;color:var(--navy)}
+.pt-letter .sig{margin-top:14px;color:var(--slate);font-style:italic}
+.pt-letter b{color:var(--navy)}
+.swap{animation:ptswap .32s ease}
+@keyframes ptswap{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.pt-breakdown-row{padding:22px 26px;border-top:1px solid var(--border);background:linear-gradient(180deg,#fbfcff,#ffffff)}
+.pt-bd-eyebrow{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-light);margin-bottom:13px}
+.pt-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pt-bd-block{background:#fbfcff;border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+.pt-bd-h{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);margin-bottom:10px}
+.pt-bd-ic{width:19px;height:19px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-weight:800}
+.pt-ic-check{background:var(--green-light);color:var(--green)}
+.pt-ic-kb{background:var(--blue-50);color:var(--blue)}
+.pt-bd-list{list-style:none;display:flex;flex-direction:column;gap:9px}
+.pt-bd-list li{position:relative;padding-left:17px;font-size:12.8px;line-height:1.5;color:var(--slate)}
+.pt-bd-list li:before{content:"";position:absolute;left:0;top:6px;width:6px;height:6px;border-radius:2px;background:var(--green)}
+.pt-kb li:before{background:var(--blue);border-radius:50%}
+.pt-bd-list li b{color:var(--navy-mid);font-weight:700}
+.pt-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:linear-gradient(180deg,#ffffff,#f4f8ff);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+.pt-arrow{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--blue-deep));color:#fff;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800;box-shadow:0 8px 20px rgba(33,107,239,.4)}
+.pt-mid-say{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-light);text-align:center;line-height:1.3}
+.pt-job{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px 21px;box-shadow:var(--shadow)}
+.pt-job-cat{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#14a800;margin-bottom:9px}
+.pt-job-cat .uw-glyph{width:15px;height:15px;color:#14a800}
+.pt-job h3{font-size:18.5px;font-weight:800;color:var(--navy);line-height:1.32}
+.pt-job-meta{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}
+.pt-job-meta .m{font-size:11.5px;font-weight:600;color:var(--slate);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:5px 9px}
+.pt-job-meta .m .v{color:var(--navy);font-weight:800}
+.pt-job-meta .m.ver{color:var(--green);background:var(--green-light);border-color:#cdeede}
+.pt-job-skills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:15px}
+.pt-job-skills span{font-size:11.5px;font-weight:600;color:var(--blue-deep);background:var(--blue-50);border:1px solid #dbeafe;border-radius:999px;padding:4px 11px}
+.pt-jd-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-light);margin-bottom:7px}
+.pt-job-desc{font-size:13.5px;line-height:1.6;color:#3a4763}
+.pt-job-desc p{margin:0 0 9px}.pt-job-desc p:last-child{margin-bottom:0}
+.pt-job-desc ul{margin:7px 0 9px;padding-left:18px}.pt-job-desc li{margin-bottom:4px}
+.pt-job-desc b{color:var(--navy)}
+.pt-job-link{display:inline-flex;align-items:center;gap:5px;margin-top:13px;font-size:13px;font-weight:700;color:var(--blue-deep);text-decoration:none}
+.pt-job-link:hover{text-decoration:underline}
+.pt-foot{background:linear-gradient(135deg,var(--navy),#111a30);color:#cdd9ea;padding:17px 26px;font-size:13.5px;line-height:1.5;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.pt-foot .pf-badge{background:rgba(33,107,239,.18);color:#8fc0ff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid rgba(33,107,239,.38);white-space:nowrap;flex-shrink:0}
+.pt-foot b{color:#fff}
+.pt-foot a{color:#9cc7ff;font-weight:700;text-decoration:none;white-space:nowrap}
+.pt-foot a:hover{text-decoration:underline}
+@media(max-width:860px){
+  .pt-grid{grid-template-columns:1fr}
+  .pt-mid{flex-direction:row;gap:12px;border-left:none;border-right:none;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:11px}
+  .pt-arrow{width:36px;height:36px;font-size:18px;transform:rotate(90deg)}
+  .pt-right{border-top:1px solid var(--border)}
+  .pt-col-head{margin-bottom:14px}
+}
+@media(max-width:520px){ .pt-breakdown{grid-template-columns:1fr} .pt-switch button{padding:6px 10px} }
 </style>
 </head>
 <body>
 <script id="lead-data" type="application/json">{{LEAD_JSON}}</script>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="uw" viewBox="0 0 24 24"><path d="M18.561 13.158c-1.102 0-2.135-.467-3.074-1.227l.228-1.076.008-.042c.207-1.143.849-3.06 2.839-3.06 1.492 0 2.703 1.212 2.703 2.703-.001 1.489-1.212 2.702-2.704 2.702zm0-8.14c-2.539 0-4.51 1.649-5.31 4.366-1.22-1.834-2.148-4.036-2.687-5.892H7.828v7.112c-.002 1.406-1.141 2.546-2.547 2.548-1.405-.002-2.543-1.143-2.545-2.548V3.492H0v7.112c0 2.914 2.37 5.303 5.281 5.303 2.913 0 5.283-2.389 5.283-5.303v-1.19c.529 1.107 1.182 2.229 1.974 3.221l-1.673 7.873h2.797l1.213-5.71c1.063.679 2.285 1.109 3.686 1.109 3 0 5.439-2.452 5.439-5.45 0-3-2.439-5.439-5.439-5.439z"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="gr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".3"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".5"/><path d="M12 12 L12 1.5 A10.5 10.5 0 0 1 22 8.2 Z" fill="currentColor" opacity=".9"/><circle cx="12" cy="12" r="2" fill="currentColor"/></symbol></svg>
 
 <!-- TOP BAR -->
 <div class="topbar">
@@ -735,6 +809,58 @@ footer .gr-foot{height:26px;width:auto}
   </div>
 </section>
 
+<!-- SECTION 7 — INTERACTIVE PROPOSAL TOOL -->
+<section class="ptool" id="proposal-tool">
+  <div class="wrap">
+    <div class="sec-head fade">
+      <div class="step"><span class="num">7</span> The message that actually gets the reply</div>
+      <h2 id="ptHeadline"></h2>
+      <p id="ptIntro"></p>
+    </div>
+
+    <div class="pt-explain fade" id="ptExplain"></div>
+
+    <div class="pt-tool fade" id="ptTool">
+      <div class="pt-grid">
+        <!-- LEFT: GigRadar proposal -->
+        <div class="pt-col pt-left">
+          <div class="pt-col-head">
+            <div class="pt-col-tag pt-tag-gr"><svg class="pt-gr-ico"><use href="#gr"></use></svg> Your GigRadar proposal</div>
+            <div class="pt-switch" id="ptStyleSwitch" role="tablist" aria-label="Cover-letter tone"></div>
+          </div>
+          <div class="pt-letter" id="ptLetter"></div>
+        </div>
+
+        <!-- MID connector -->
+        <div class="pt-mid"><div class="pt-arrow">→</div><div class="pt-mid-say">written<br>for</div></div>
+
+        <!-- RIGHT: Upwork job -->
+        <div class="pt-col pt-right">
+          <div class="pt-col-head">
+            <div class="pt-col-tag pt-tag-uw"><svg class="uw-glyph"><use href="#uw"></use></svg> The Upwork job</div>
+            <div class="pt-switch pt-job-switch" id="ptJobSwitch" role="tablist" aria-label="Choose a job"></div>
+          </div>
+          <div class="pt-job" id="ptJob"></div>
+        </div>
+      </div>
+      <div class="pt-breakdown-row">
+        <div class="pt-bd-eyebrow">Why this letter lands, and where it comes from</div>
+        <div class="pt-breakdown">
+          <div class="pt-bd-block">
+            <div class="pt-bd-h"><span class="pt-bd-ic pt-ic-check">✓</span> Why this converts</div>
+            <ul class="pt-bd-list" id="ptWhy"></ul>
+          </div>
+          <div class="pt-bd-block">
+            <div class="pt-bd-h"><span class="pt-bd-ic pt-ic-kb">◆</span> Sourced from GigRadar's knowledge base</div>
+            <ul class="pt-bd-list pt-kb" id="ptKb"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="pt-foot" id="ptFoot"></div>
+    </div>
+  </div>
+</section>
+
 <!-- FINAL CTA -->
 <section class="final" id="book">
   <div class="glow g1" style="opacity:.4"></div>
@@ -965,6 +1091,75 @@ if(caseGrid){
     '</a>';
   }).join('');
 }
+
+/* ============== SECTION 7 — INTERACTIVE PROPOSAL TOOL ============== */
+(function(){
+  var PT = DATA.proposalTool || {};
+  var jobs = PT.jobs || [];
+  var sec = document.getElementById('proposal-tool');
+  if(!jobs.length){ if(sec) sec.style.display='none'; return; }
+
+  _txt('ptHeadline', PT.headline);
+  _set('ptIntro', PT.intro);
+  _set('ptExplain', PT.explainer);
+  _set('ptFoot', PT.foot);
+
+  var STYLES=[{k:'formal',label:'Formal'},{k:'quirky',label:'Quirky'},{k:'creative',label:'Creative'}];
+  var cur={job:0, style:'formal'};
+
+  var jsw=document.getElementById('ptJobSwitch');
+  jsw.innerHTML=jobs.map(function(j,i){
+    return '<button type="button" data-job="'+i+'" class="'+(i===0?'on':'')+'">'+_esc(j.tabLabel||('Job '+(i+1)))+'</button>';
+  }).join('');
+  var ssw=document.getElementById('ptStyleSwitch');
+  ssw.innerHTML=STYLES.map(function(s,i){
+    return '<button type="button" data-style="'+s.k+'" class="'+(i===0?'on':'')+'">'+s.label+'</button>';
+  }).join('');
+
+  function letterFor(j){ var L=j.letters||{}; return L[cur.style]||L.formal||{}; }
+  function animate(el){ el.classList.remove('swap'); void el.offsetWidth; el.classList.add('swap'); }
+
+  function renderLetter(anim){
+    var L=letterFor(jobs[cur.job]);
+    var el=document.getElementById('ptLetter');
+    el.innerHTML=L.coverLetter||'';
+    _set('ptWhy',(L.whyConverts||[]).map(function(p){return '<li>'+_esc(p)+'</li>';}).join(''));
+    _set('ptKb',(L.kbSourced||[]).map(function(p){return '<li>'+_esc(p)+'</li>';}).join(''));
+    if(anim) animate(el);
+  }
+  function renderJob(anim){
+    var j=jobs[cur.job];
+    var chips=(j.jobStats||[]).map(function(m){
+      return '<span class="m'+(m.ver?' ver':'')+'">'+(m.ver?'✓ ':'')+(m.v?'<span class="v">'+_esc(m.v)+'</span> ':'')+_esc(m.k)+'</span>';
+    }).join('');
+    var skills=(j.jobSkills||[]).map(function(s){return '<span>'+_esc(s)+'</span>';}).join('');
+    var el=document.getElementById('ptJob');
+    el.innerHTML=
+      '<div class="pt-job-cat"><svg class="uw-glyph"><use href="#uw"></use></svg> Upwork · '+_esc(j.jobCategory)+'</div>'+
+      '<h3>'+_esc(j.jobTitle)+'</h3>'+
+      (chips?'<div class="pt-job-meta">'+chips+'</div>':'')+
+      (skills?'<div class="pt-job-skills">'+skills+'</div>':'')+
+      '<div class="pt-jd-label">What the client wrote</div>'+
+      '<div class="pt-job-desc">'+(j.jobDescription||'')+'</div>'+
+      (j.jobUrl?'<a class="pt-job-link" href="'+_esc(j.jobUrl)+'" target="_blank" rel="noopener">View live on Upwork ↗</a>':'');
+    if(anim) animate(el);
+  }
+
+  jsw.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    cur.job=+b.dataset.job;
+    jsw.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});
+    renderJob(true); renderLetter(true);
+    if(window.posthog)posthog.capture('proposal_tool_job',{job:cur.job});
+  });
+  ssw.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    cur.style=b.dataset.style;
+    ssw.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});
+    renderLetter(true);
+    if(window.posthog)posthog.capture('proposal_tool_style',{style:cur.style});
+  });
+
+  renderJob(false); renderLetter(false);
+})();
 
 // Section 2: reveal hidden opportunities on click
 (function(){var b=document.getElementById('oppMore');if(b){b.addEventListener('click',function(){document.querySelectorAll('.opp-more').forEach(function(e){e.classList.remove('opp-more');e.classList.add('in');});b.parentElement.style.display='none';});}})();

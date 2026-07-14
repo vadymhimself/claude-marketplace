@@ -30,7 +30,8 @@ file/PDF.
 ## The pipeline
 
 Run these as a team. Steps 1–2 are independent — **spawn them in parallel**.
-Steps 3–5 you (the orchestrator) do once they return.
+Step 3 (cover-letter sub-agent) spawns the moment the twin jobs are picked and runs
+**in parallel** with your own steps 4–5. Steps 4–6 you (the orchestrator) do.
 
 ### 1. Recon sub-agent  → `references/recon.md`
 Scrape the lead's website + LinkedIn into a dossier: company summary, core
@@ -45,14 +46,27 @@ budgets) and return ~9 cherry-picked jobs with a "why it fits → how it expands
 note each. **Lead only with the top tail — never low-ballers.** (Reuses the same
 ES recipe as the `gigradar-gm:market-research` skill.)
 
-### 3. Earnings config  → `references/earnings-model.md` + `references/calc-core.mjs`
+### 3. Proposal-tool cover letters (Sonnet + KB)  → `references/proposal-tool.md`
+A **dedicated sub-agent** that generates section 7 — the interactive "watch the
+proposal write itself" block. Give it the **same jobs** as the twins (usually 4),
+the lead's voice/proof from recon, and **the `knowledge-base` skill**. It pulls
+GigRadar's real cover-letter playbook from the KB, then writes **n jobs × 3 tones
+(Formal / Quirky / Creative) = 3n** distinct cover letters, each with "why it
+converts" + "sourced from the KB" notes, and returns one `proposalTool` JSON object.
+Run it on **Sonnet** (high-volume copy, light reasoning — saves tokens) and **spawn
+it in parallel** with steps 4–5, as soon as the twin jobs exist. Full recipe +
+output shape + the three tone definitions live in `references/proposal-tool.md`.
+
+### 4. Earnings config  → `references/earnings-model.md` + `references/calc-core.mjs`
 Pick the lead's niche row from the benchmark table (reply-rate scenarios, close
 rates, avg contract value, GigRadar cost). These feed the calculator. The math is
 the verbatim GigRadar DFY engine — do not invent numbers.
 
-### 4. Assemble `lead-data.json`
-Fill the schema in `assets/template-schema.json` with everything from steps 1–3
+### 5. Assemble `lead-data.json`
+Fill the schema in `assets/template-schema.json` with everything from steps 1–4
 (hero, standing/services, opportunities, profile mockup, calculator config).
+- Drop the cover-letter agent's returned object in verbatim under `proposalTool`
+  (section 7). Its jobs should be the same ones as `twinsSection.twins`.
 - Reference images as `"@file:<path>"` (the build script inlines them as base64 —
   never paste base64 by hand).
 - Set `serviceTags` to the lead's niches using the taxonomy in
@@ -61,7 +75,7 @@ Fill the schema in `assets/template-schema.json` with everything from steps 1–
   tag overlap — no manual case-study picking needed.
 - Leave `demoUrl` as the GigRadar HubSpot link (already the default).
 
-### 5. Build, verify, deliver
+### 6. Build, verify, deliver
 ```bash
 cd <skill>/scripts
 python3 build.py --lead <path>/lead-data.json --out <path>/proposal.html
@@ -82,7 +96,8 @@ your `GIGRADAR_PROPOSAL_TOKEN` (per-user push token — provision via
 `ai-researcher-users` with `proposals_push: true`). Every published page
 auto-reports engagement to **PostHog** (project GigRadar), keyed by the slug:
 `proposal_viewed`, `scroll_depth`, `section_view`, `book_demo_click`,
-`demo_modal_open`, `calculator_used`, `opportunity_click`, `case_study_click` —
+`demo_modal_open`, `calculator_used`, `opportunity_click`, `case_study_click`,
+`proposal_tool_job`, `proposal_tool_style` (which jobs/tones they explored) —
 so you see exactly who opened it and how far they got. (Analytics only fire on the
 live host, never on local preview or PDF.)
 
@@ -99,14 +114,30 @@ live host, never on local preview or PDF.)
 - **Be honest in the numbers.** The calculator is a projection (label it). Don't
   fake per-client star ratings on case studies — GigRadar only has a site-wide
   Trustpilot score. Don't show a wrong logo (e.g. a site's WordPress favicon).
+- **Never fabricate or reinvent — this is a trust document.** Every fact about the
+  lead (their clients, past projects, metrics, positioning) must come from their
+  real website or the outreach DB; every Upwork job/case study shown must be a real
+  record from the miner/ES, quoted, never invented or embellished. No made-up client
+  names, results, or testimonials. If you can't source it, leave it out.
+- **No AI-slop tells in lead-facing copy.** No long dashes (em — / en –) anywhere —
+  use commas, periods, colons, parentheses; `build.py` strips any that slip. No
+  internal jargon a lead won't know: never write "KB" — say "knowledge base",
+  "our proposal data", or "insights from 133,872 proposals".
 - **Match their brand in the hero only** (photo/logo); the page itself is GigRadar
   brand. The point is "GigRadar built this *for you*".
+- **The proposal tool (section 7) must be genuinely good copy.** It's the block
+  where the prospect *feels* the product, so weak or duplicated letters undercut the
+  whole page. All 3n letters distinct, each opening on the client with one real
+  proof and one CTA, each `kbSourced` note a real KB pattern — never fabricated.
 
 ## Files
 - `assets/template.html` — the data-driven template (`{{LEAD_JSON}}` slot).
 - `assets/template-schema.json` — the contract for `lead-data.json` (every field
   + an example). Read this before filling.
-- `assets/example-remote-guyana.json` — a complete worked example.
+- `assets/example-remote-guyana.json` — a complete worked example (incl. a full
+  `proposalTool` block: 4 jobs × 3 tones).
+- `references/proposal-tool.md` — the section-7 cover-letter recipe (Sonnet + KB
+  sub-agent): the three tones, KB grounding, letter craft, and output shape.
 - `assets/case-studies/` — the ~22-study library (`case-studies.json` + images),
   tagged for relevance matching.
 - `scripts/build.py` — fills the template (image embed + case-study selection).

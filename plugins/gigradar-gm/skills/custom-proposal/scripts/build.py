@@ -25,11 +25,34 @@ The lead JSON should carry images as "@file:relative/or/abs/path.jpg" — the
 orchestrator never pastes base64 by hand. Already-formed data: URIs pass through
 untouched.
 """
-import argparse, base64, html, json, os, sys
+import argparse, base64, html, json, os, re, sys
 
 MIME = {".jpg":"image/jpeg",".jpeg":"image/jpeg",".png":"image/png",
         ".webp":"image/webp",".avif":"image/avif",".svg":"image/svg+xml",
         ".gif":"image/gif"}
+
+# --- Anti-AI-slop: no long dashes ever reach a lead ------------------------
+# Em-dash (—) and en-dash (–) are the #1 "written by AI" tell. This is a hard
+# deterministic guard so a slip in ANY field (any section, any teammate) can't
+# ship. Number ranges become hyphens; a leading dash (sign-offs like "— Name")
+# is dropped; every other long dash becomes a comma. Applied to all text; skips
+# URLs and data: URIs. The generation instructions also forbid long dashes, so
+# this should almost always be a no-op — it's the safety net, not the plan.
+_DASH_BETWEEN_DIGITS = re.compile(r'(?<=\d)\s*[–—]\s*(?=\d)')
+_DASH_AFTER_TAG      = re.compile(r'(>)\s*[—–]\s*')
+_DASH_LEADING        = re.compile(r'^\s*[—–]\s*')
+_DASH_ANY            = re.compile(r'\s*[—–]\s*')
+_dash_hits = []
+def strip_long_dashes(s):
+    if not s or ('—' not in s and '–' not in s):
+        return s
+    _dash_hits.append(s[:60])
+    s = _DASH_BETWEEN_DIGITS.sub('-', s)   # 12–18 -> 12-18, $15–45 -> $15-45
+    s = _DASH_AFTER_TAG.sub(r'\1', s)      # "<p class=sig>— Maya" -> "<p class=sig>Maya" (sign-offs)
+    s = _DASH_LEADING.sub('', s)           # leading dash on a plain string -> drop
+    s = _DASH_ANY.sub(', ', s)             # remaining em/en dashes -> comma
+    s = re.sub(r',\s*,', ',', s)           # collapse any accidental ", ,"
+    return s
 
 def data_uri(path):
     ext = os.path.splitext(path)[1].lower()
@@ -52,14 +75,14 @@ def resolve_files(obj, base_dir):
                 print(f"  WARN: image not found: {p}", file=sys.stderr)
                 return ""
             return data_uri(p)
-        if obj.startswith("data:"):
+        if obj.startswith("data:") or obj.startswith("http://") or obj.startswith("https://"):
             return obj
         # The template injects most fields via textContent, where a literal
         # "&amp;" / "&mdash;" would show as raw text. Decode HTML entities here so
         # teammates can write either entities OR literal Unicode and it renders
         # correctly either way. (HTML-typed fields use literal <tags>, which have
-        # no entities, so this is a no-op for them.)
-        return html.unescape(obj)
+        # no entities, so this is a no-op for them.) Then strip long dashes.
+        return strip_long_dashes(html.unescape(obj))
     return obj
 
 def pretty_tag(tag):
@@ -152,6 +175,11 @@ def main():
     with open(a.out, "w", encoding="utf-8") as f:
         f.write(out)
     print(f"  wrote {a.out} ({len(out):,} bytes, {len(lead.get('caseStudies',[]))} case studies)")
+    if _dash_hits:
+        print(f"  normalized {len(_dash_hits)} long-dash field(s) (em/en → comma/hyphen). "
+              f"Fix these at the source too — long dashes read as AI-written:", file=sys.stderr)
+        for h in _dash_hits[:8]:
+            print(f"    · {h}…", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
