@@ -351,6 +351,14 @@ POST /profile-agency/_search
 
 Use `profile-metric-snapshot` MRR rows. Compare `recentEarnings` at two `weekKey`s ~26 weeks apart per agency.
 
+**Compute the two `weekKey`s from today** (do NOT hard-code — the sample values below drift silently as the calendar moves):
+```bash
+END_WK=$(date -u +'%G-W%V')                     # e.g. 2026-W29
+START_WK=$(date -u -v-182d +'%G-W%V')          # BSD/macOS; use -d '182 days ago' on GNU
+```
+
+Then substitute `$START_WK` / `$END_WK` into the query below. The sample values (`2026-W03`, `2026-W29`) are only illustrative:
+
 ```json
 POST /profile-metric-snapshot/_search
 {
@@ -471,4 +479,15 @@ year, week, _ = d.isocalendar()
 print(f"{year}-W{week:02d}")
 ```
 
-**MRR retention**: `profile-metric-snapshot` is append-only — the BF-3489 handler writes weekly rows and does NOT prune. Available history goes back to when BF-3489 first ran in production (`git log gigradar-monorepo/.../mrr-snapshot-handler.ts` in the monorepo for the first-deploy date). If the earliest MRR row you need isn't there, fall back to a shorter window.
+**MRR retention**: `profile-metric-snapshot` is append-only — the BF-3489 handler writes weekly rows and does NOT prune. Available history goes back to when BF-3489 first ran in production. To find the earliest MRR row empirically (no repo access needed):
+
+```json
+POST /profile-metric-snapshot/_search?size=1
+{
+  "query": {"exists": {"field": "recentEarnings"}},
+  "sort": [{"snapshotAt": "asc"}],
+  "_source": ["snapshotAt", "weekKey"]
+}
+```
+
+If your requested `START_WK` is earlier than the returned `weekKey`, fall back to whatever the earliest MRR row is.
