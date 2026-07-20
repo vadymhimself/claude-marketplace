@@ -156,3 +156,91 @@ When exploring a new field, first `GET /metajob-all/_mapping` (works under `meta
 - Terms aggs up to `size=200` on a month-sized window return in 1–3s. Don't go wider without a reason.
 - `cardinality` estimates on high-cardinality text fields are cheap; exact counts via large terms aggs are not.
 - The index has multiple shards — `top_hits` sub-aggs that require global sort are slow; avoid them for routine runs.
+
+---
+
+## `profile-skill` + `profile-skill-rank` (added 2026-07)
+
+The `metajob-ro` role now also grants read on `profile-skill*` (matches both `profile-skill` and `profile-skill-rank`). These indices are tiny compared to `metajob*` and carry no PII — full field access is fine.
+
+### `profile-skill-rank` shape (rank history)
+
+Only 4 fields: `upworkContractorUid` (keyword), `skillUid` (keyword), `createdAt` (date), `rank` (integer). One doc per `(contractor, skill, day)`.
+
+`rank = 1` is top of the Upwork skill leaderboard; higher rank = worse position. Records are sparse — Upwork doesn't publish rank for every freelancer, and GigRadar only snapshots tracked skills.
+
+### `profile-skill` shape (skill master)
+
+Use it as a **name lookup** for the `skillUid` values that appear in `profile-skill-rank.skillUid` and `metaJob.skills.uid`. Fields: `skillUid`, `name`, `slug`, `type`, plus a sync-job state block that market research can ignore.
+
+Fast pattern for building a `{skillUid: name}` map — one bulk fetch:
+
+```json
+POST /profile-skill/_search?size=10000
+{
+  "_source": ["skillUid", "name"],
+  "sort": [{"skillUid": "asc"}]
+}
+```
+
+### Skill competitiveness — how many distinct freelancers rank for X
+
+```json
+POST /profile-skill-rank/_search?size=0
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"skillUid": "<uid-from-profile-skill>"}},
+        {"range": {"createdAt": {"gte": "2026-05-01", "lt": "2026-06-01"}}}
+      ]
+    }
+  },
+  "aggs": {
+    "distinct_contractors": {"cardinality": {"field": "upworkContractorUid"}},
+    "top50_share": {
+      "filter": {"range": {"rank": {"lte": 50}}},
+      "aggs": {"contractors_in_top50": {"cardinality": {"field": "upworkContractorUid"}}}
+    }
+  }
+}
+```
+
+`distinct_contractors` = supply proxy for the skill. Growing over time = more supply, harder to differentiate on that skill; shrinking = specialization opportunity. Cross-reference with `metajob` `doc_count` for the same skill to get supply vs demand.
+
+### Rank-drift for a specific contractor
+
+```json
+POST /profile-skill-rank/_search?size=0
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"upworkContractorUid": "~<contractor-uid>"}},
+        {"range": {"createdAt": {"gte": "now-90d"}}}
+      ]
+    }
+  },
+  "aggs": {
+    "by_skill": {
+      "terms": {"field": "skillUid", "size": 20},
+      "aggs": {
+        "rank_by_week": {
+          "date_histogram": {"field": "createdAt", "calendar_interval": "week"},
+          "aggs": {"min_rank": {"min": {"field": "rank"}}}
+        }
+      }
+    }
+  }
+}
+```
+
+Then feed the `min_rank` time series into whatever alerting logic you want (weekly delta > 20 = "significant drop").
+
+### Combined: growing-supply, growing-demand skills
+
+Join the outputs of:
+- `metajob` — `doc_count` per `metaJob.skills.name.keyword` for two consecutive windows → demand delta
+- `profile-skill-rank` — distinct `upworkContractorUid` per `skillUid` for the same windows (map back to skill name via `profile-skill`) → supply delta
+
+Sweet spot for GigRadar is **demand growing faster than supply** — those are skills where the market pays a premium and our customers can win more jobs. Include this cross-index diff in monthly market reports.

@@ -19,9 +19,10 @@ Every market claim, every "what's growing/shrinking" call, every "the play here 
 
 ---
 
-This skill produces a defensible view of the Upwork market from GigRadar's two data sources:
+This skill produces a defensible view of the Upwork market from GigRadar's data sources:
 
-- **Elasticsearch `metajob` index** — public crawl of Upwork job postings. Used for volume, category/subcategory/skill mix, budget, client quality.
+- **Elasticsearch `metajob*` index** — public crawl of Upwork job postings. Used for volume, category/subcategory/skill mix, budget, client quality.
+- **Elasticsearch `profile-skill*` + `profile-skill-rank*`** — Upwork skill master + per-contractor per-skill rank history. Used for **skill-competitiveness** analytics (distinct-freelancer supply for a skill) and **rank-drift** analysis. Cross-index with `metajob` demand for the "demand growing faster than supply" screen — the sweet spot for our customers.
 - **Mongo `proposals` collection** — GigRadar customers' agency-side proposals. Used for reply/view rates (via the canonical `StatsRepository` formula).
 
 The output is a tidy Excel workbook + markdown exec summary, covering the windows the user cares about (typical: a focus month vs one or more prior months).
@@ -41,6 +42,9 @@ The user will not supply structured flags. They will say things like:
 | "Benchmark the Video Editing skill" | `--focus-skill "Video Editing"`, 2–3 months, report volume + reply rate |
 | "Compare April vs May 2025" | `--windows apr2025,may2025` `--focus may2025` |
 | "Run the monthly report for the Acme team" | last completed month + prior, `--team-oid <lookup>` on mongo |
+| "How competitive is the Video Editing skill?" | `profile-skill-rank` supply query — see [es-patterns.md → Skill competitiveness](references/es-patterns.md#skill-competitiveness--how-many-distinct-freelancers-rank-for-x) |
+| "Which skills have growing demand and shrinking supply?" | Combined `metajob` demand delta + `profile-skill-rank` supply delta — see [es-patterns.md → Combined: growing-supply, growing-demand skills](references/es-patterns.md#combined-growing-supply-growing-demand-skills) |
+| "Track ranking drift for freelancer X over the last quarter" | `profile-skill-rank` time series for a fixed `upworkContractorUid` — see [es-patterns.md → Rank-drift](references/es-patterns.md#rank-drift-for-a-specific-contractor) |
 
 ### Resolving windows
 

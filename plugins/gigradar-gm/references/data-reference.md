@@ -369,6 +369,34 @@ Combined from `metajob.metajob` (the original scrapped view) and `metajob.crawle
 - `matcher.embedding[]`, `matcher.text_blob` (vector + BM25 text for matcher)
 - `matcher.appliedByTeams[].{teamId, proposalStatus, isInterviewed}` — updated at proposal-send time so we can show "X teams already applied".
 
+### `profile-skill` document shape (Upwork skill master)
+
+Flat, small (~1 doc per Upwork skill). Grants `metajob-ro` (since 2026-07):
+
+- `skillUid` — Upwork's skill id (join key with `profile-skill-rank.skillUid` and with `metaJob.skills.uid`)
+- `name`, `slug`, `type` — human labels
+- `lastSyncedAt`, `lastSyncStartedAt`, `syncEnabled`, `syncError` — sync-job state (ignore for market research)
+- `appliedToTeams[]` — which internal GigRadar teams are tracking this skill; `contractorUids[]` = contractors flagged as candidates
+- `runs[]` — history of sync runs (`runId`, `startedAt`, `finishedAt`, `error`, `duration`)
+
+Use it as a **name lookup** for skill uids surfaced by `profile-skill-rank` and `metaJob.skills.uid`.
+
+### `profile-skill-rank` document shape (rank history)
+
+The "upworkRank" index — one doc per `(contractor, skill, day)`. Grants `metajob-ro` (since 2026-07). Very small schema, only 4 fields:
+
+- `upworkContractorUid` — Upwork contractor id (join key with `profile-contractor.upworkContractorUid` if you have access; not required for aggregate analysis)
+- `skillUid` — Upwork skill id (join key with `profile-skill.skillUid`)
+- `createdAt` — snapshot date
+- `rank` — integer, 1 = top of the skill leaderboard, higher = worse
+
+Useful queries:
+- **Skill competitiveness** — count distinct `upworkContractorUid` per `skillUid` bucket over a window (how many freelancers rank in the top-N for this skill).
+- **Rank-drift alerts** — for a fixed `upworkContractorUid`, plot `rank` over time and flag deltas above a threshold.
+- **Freelancer supply proxy** — for a skill, how the top-50 leaderboard churns week-over-week is a decent proxy for how competitive the skill is becoming.
+
+`profile-contractor`, `profile-agency`, and `profile-metric-snapshot` are **NOT** in the `metajob-ro` scope (they carry freelancer/agency PII — name, description, earnings). If a research question needs them, request an FLS-masked variant of the role rather than opening those indices wholesale.
+
 ---
 
 ## 9. Enums to remember
@@ -533,6 +561,13 @@ db = c["gigradar-dev"]
 Role does **not** have permission on `system.views` (acceptable — no materialized views to worry about).
 
 **Elasticsearch**: requires Basic auth. Cluster at `https://<es-host>:9243`. Auth envs surfaced in code: `ES_USERNAME=elastic`, `ES_PUBLIC_LOGIN=public_prod_elastic_api`. Request credentials from the team before querying — current researcher credentials do not authorize ES.
+
+Provisioned researchers (via [ai-researcher-users](https://github.com/GigRadar/gigradar-infrastructure/tree/main/ai-researcher-users)) get the `metajob-ro` role, which reads:
+- `metajob*` — jobs firehose (client PII is field-masked; see §15.5)
+- `profile-skill*` — Upwork skill master
+- `profile-skill-rank*` — per-contractor per-skill rank history
+
+Other indices (`profile-contractor*`, `profile-agency*`, `profile-metric-snapshot*`, `jobs-volume-skill-daily*`, `agent-metrics*`) return `HTTP 403` for this role.
 
 ---
 
