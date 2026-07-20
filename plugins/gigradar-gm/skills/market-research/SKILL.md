@@ -19,9 +19,13 @@ Every market claim, every "what's growing/shrinking" call, every "the play here 
 
 ---
 
-This skill produces a defensible view of the Upwork market from GigRadar's two data sources:
+This skill produces a defensible view of the Upwork market from GigRadar's data sources:
 
-- **Elasticsearch `metajob` index** — public crawl of Upwork job postings. Used for volume, category/subcategory/skill mix, budget, client quality.
+- **Elasticsearch `metajob*` index** — public crawl of Upwork job postings. Used for volume, category/subcategory/skill mix, budget, client quality. **8 client PII sub-fields on `metaJob.client.company.*` + `metaJob.meta.topBids.bids.name` are masked via FLS** — see [data-reference.md §15.7](../../references/data-reference.md#157-client-pii-fields-masked-via-fls-on-metajob). Everything else on metajob (client.location, client.stats, company industry/size/isEnterprise, buyer.logo, etc.) is open.
+- **Elasticsearch `profile-skill*` + `profile-skill-rank*`** — Upwork skill master + per-contractor per-skill rank history. Used for **skill-competitiveness** analytics (distinct-freelancer supply for a skill) and **rank-drift** analysis. Cross-index with `metajob` demand for the "demand growing faster than supply" screen — the sweet spot for our customers.
+- **Elasticsearch `profile-contractor*`** — freelancer profiles (name, `stats.{jobSuccessScore, totalEarning, totalHours, rate}`, location, skills, `defaultAgencyUid`, `photoUrl`, `recentEarnings` + `prevRecentEarnings` for week-over-week growth). Use to hydrate rank query results with real profile info.
+- **Elasticsearch `profile-agency*`** — agency profiles (name, description, logo, country/region/city, `recentEarnings` + `prevRecentEarnings`, `services[]` = Upwork skill display names the agency lists, `owner.{name,portrait}`, `topRatedStatus`, `minRate`/`maxRate`, `jobSuccessScore`, `memberSinceDateTime`). Enables agency-level cross-country / cross-skill benchmarking + top-earning-agency screens.
+- **Elasticsearch `profile-metric-snapshot*`** — weekly snapshots per entity, with **two disjoint row types in one index**: **MRR rows** (weekly `recentEarnings` per contractor/agency — for multi-week growth math) and **SERP rows** (weekly rank position per entity per skill — for per-skill leaderboard time series). Discriminate with `{exists: recentEarnings}` (MRR) or `{exists: scopeType}` (SERP). `weekKey` format: ISO `YYYY-Wxx`. See [data-reference.md §8](../../references/data-reference.md#profile-metric-snapshot-document-shape-weekly-snapshots--two-row-types).
 - **Mongo `proposals` collection** — GigRadar customers' agency-side proposals. Used for reply/view rates (via the canonical `StatsRepository` formula).
 
 The output is a tidy Excel workbook + markdown exec summary, covering the windows the user cares about (typical: a focus month vs one or more prior months).
@@ -41,6 +45,14 @@ The user will not supply structured flags. They will say things like:
 | "Benchmark the Video Editing skill" | `--focus-skill "Video Editing"`, 2–3 months, report volume + reply rate |
 | "Compare April vs May 2025" | `--windows apr2025,may2025` `--focus may2025` |
 | "Run the monthly report for the Acme team" | last completed month + prior, `--team-oid <lookup>` on mongo |
+| "How competitive is the Video Editing skill?" | `profile-skill-rank` distinct-contractor supply — see [es-patterns.md → Skill competitiveness](references/es-patterns.md#skill-competitiveness-distinct-contractor-supply) |
+| "Which skills have growing demand and shrinking supply?" | `metajob` demand delta × `profile-skill-rank` supply delta — [es-patterns.md → Combined: growing-supply, growing-demand skills](references/es-patterns.md#combined-growing-supply-growing-demand-skills) |
+| "Track ranking drift for freelancer X over the last quarter" | `profile-skill-rank` time series for a fixed `upworkContractorUid` — [es-patterns.md → Rank drift for a specific contractor](references/es-patterns.md#rank-drift-for-a-specific-contractor) |
+| "Top 5 Video Editing freelancers with full profiles" | 3-step join: `profile-skill` (name→uid) → `profile-skill-rank` (top-N by rank) → `profile-contractor` (hydrate name/skills/stats/agency) — [es-patterns.md → Top freelancers ranking for a skill + full profile hydration](references/es-patterns.md#top-freelancers-ranking-for-a-skill--full-profile-hydration) |
+| "Top 20 agencies by earnings growth last week" | `profile-agency` `prevRecentEarnings` (pre-computed WoW baseline — no join needed) — [es-patterns.md → Top-N agencies by week-over-week earnings growth](references/es-patterns.md#top-n-agencies-by-week-over-week-earnings-growth-cheap-version) |
+| "Top 20 agencies by earnings growth last 6 months" | `profile-metric-snapshot` MRR rows compared across two `weekKey`s — [es-patterns.md → Top-N agencies by 6-month earnings growth](references/es-patterns.md#top-n-agencies-by-6-month-earnings-growth-proper-time-series) |
+| "Agency SERP rank for Video Editing this week" | `profile-metric-snapshot` SERP rows (`scopeType: service`, `scopeValue: skillUid`) — [es-patterns.md → Agency SERP rank for a skill](references/es-patterns.md#agency-serp-rank-for-a-skill-weekly-leaderboard) |
+| "Do US Video Editing agencies earn more than Ukrainian ones?" | `profile-agency` with country + services filters — [es-patterns.md → Cross-country agency comparison](references/es-patterns.md#cross-country-agency-comparison-q-c-from-the-doc-test) |
 
 ### Resolving windows
 
