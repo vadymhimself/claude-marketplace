@@ -371,35 +371,96 @@ Combined from `metajob.metajob` (the original scrapped view) and `metajob.crawle
 
 ### `profile-skill` document shape (Upwork skill master)
 
-Flat, small (~1 doc per Upwork skill). Grants `metajob-ro` (since 2026-07):
+Flat, small (~1 doc per Upwork skill). In `metajob-ro` scope since 2026-07.
 
-- `skillUid` — Upwork's skill id (join key with `profile-skill-rank.skillUid` and with `metaJob.skills.uid`)
-- `name`, `slug`, `type` — human labels
-- `lastSyncedAt`, `lastSyncStartedAt`, `syncEnabled`, `syncError` — sync-job state (ignore for market research)
-- `appliedToTeams[]` — which internal GigRadar teams are tracking this skill; `contractorUids[]` = contractors flagged as candidates
-- `runs[]` — history of sync runs (`runId`, `startedAt`, `finishedAt`, `error`, `duration`)
+Fields (`(type)` shown; `[keyword]` = has `.keyword` sub-field):
 
-Use it as a **name lookup** for skill uids surfaced by `profile-skill-rank` and `metaJob.skills.uid`.
+- `skillUid` (keyword) — Upwork's skill id. **Join key** with `profile-skill-rank.skillUid`, `profile-metric-snapshot.scopeValue` (when `scopeType: service`), and `metaJob.skills.uid`.
+- `name` (keyword) — human label. **Note: pure keyword, NOT text — do NOT append `.keyword`.** `{"term": {"name": "Video Editing"}}` works directly.
+- `slug` (keyword), `type` (keyword) — additional labels
+- `lastSyncedAt` / `lastSyncStartedAt` (date), `syncEnabled` (boolean), `syncError` (text), `runs[]`, `appliedToTeams[]` — sync-job internals; ignore for market research
 
-### `profile-skill-rank` document shape (rank history)
+Use as a **name↔uid lookup** for the uids surfaced by `profile-skill-rank`, `profile-metric-snapshot`, and `metaJob.skills.uid`.
 
-The "upworkRank" index — one doc per `(contractor, skill, day)`. Grants `metajob-ro` (since 2026-07). Very small schema, only 4 fields:
+### `profile-skill-rank` document shape (rank history — "upworkRank")
 
-- `upworkContractorUid` — Upwork contractor id (join key with `profile-contractor.upworkContractorUid` if you have access; not required for aggregate analysis)
-- `skillUid` — Upwork skill id (join key with `profile-skill.skillUid`)
-- `createdAt` — snapshot date
-- `rank` — integer, 1 = top of the skill leaderboard, higher = worse
+One doc per `(contractor, skill, snapshot)`. In `metajob-ro` scope since 2026-07. Very small schema, only 4 fields (all top-level `keyword`/`date`/`integer` — no `.keyword` gotchas):
 
-Useful queries:
-- **Skill competitiveness** — count distinct `upworkContractorUid` per `skillUid` bucket over a window (how many freelancers rank in the top-N for this skill).
-- **Rank-drift alerts** — for a fixed `upworkContractorUid`, plot `rank` over time and flag deltas above a threshold.
-- **Freelancer supply proxy** — for a skill, how the top-50 leaderboard churns week-over-week is a decent proxy for how competitive the skill is becoming.
+- `upworkContractorUid` (keyword) — Upwork contractor id. **Join key** with `profile-contractor.upworkContractorUid`.
+- `skillUid` (keyword) — Upwork skill id. **Join key** with `profile-skill.skillUid`.
+- `createdAt` (date) — snapshot timestamp
+- `rank` (integer) — 1 = top of the skill leaderboard, higher = worse. Sparse — Upwork doesn't publish rank for every freelancer, and GigRadar only snapshots tracked skills.
 
-`profile-contractor`, `profile-agency`, and `profile-metric-snapshot` **are** in the `metajob-ro` scope (as of 2026-07). They mirror public Upwork profile pages so no FLS is applied. Field shapes:
+Useful queries: skill competitiveness (distinct-contractor cardinality per `skillUid`), rank drift for a fixed contractor over time, top-N leaderboard for a skill. Copy-pasteable queries in [es-patterns.md → profile-\* indices](../skills/market-research/references/es-patterns.md#profile--indices-added-2026-07).
 
-- **`profile-contractor`** — `upworkContractorUid` (join key), `gigradarTeamId`, `name` (text), `slug`, `role`, `defaultAgencyUid`, `teams[].{agencyId, gigradarTeamId}`, `skills[].{uid, name, order}`, `customKeywords[].{uid, name, order}`. Useful for enriching rank data with the freelancer's actual skill mix.
-- **`profile-agency`** — `upworkAgencyUid`, `name`, `title`, `description` (text), `logo`, `country`, `region`, `city`, `memberCountries[]`, `services[]`, `recentEarnings`, `totalEarnings`, `totalRevenue`, `totalJobs`. Enables agency-earnings trend + geo distribution analytics.
-- **`profile-metric-snapshot`** — `entityType` (`contractor`|`agency`), `entityUid`, `weekKey`, `snapshotAt`, `recentEarnings`, `lifetimeEarnings`, `totalJobs`, `scopeType`, `scopeValue`, `rank`, `total`. Time-series companion for both contractor and agency ranking / earnings trajectories.
+### `profile-contractor` document shape (freelancer profiles)
+
+In `metajob-ro` scope. Fields (mirror what's on Upwork's public freelancer page):
+
+- `upworkContractorUid` (keyword) — **join key** with `profile-skill-rank`, and with `profile-metric-snapshot` when `entityType: contractor` (`entityUid = upworkContractorUid`)
+- `gigradarTeamId` (keyword) — set when this freelancer belongs to a GigRadar customer's team
+- `defaultAgencyUid` (keyword) — the agency this freelancer defaults to. **Join key** to `profile-agency.upworkAgencyUid`
+- `teams[].{agencyId, gigradarTeamId}` (both keyword) — additional agency associations (a freelancer can be in multiple agencies)
+- `name` (text `[keyword]`) — **use `name.keyword` for terms aggs.** Free-text search on `name`
+- `slug`, `role`, `title`, `description` — `slug`/`role` are keyword; `title` is text `[keyword]`; `description` is pure text (search only, no aggs)
+- `skills[].{uid (keyword), name (text `[keyword]`), order (integer)}` — the freelancer's stated skill list. Aggregate on `skills.name.keyword` or `skills.uid`
+- `customKeywords[].{uid, name, order}` — same pattern as skills, populated by the GigRadar UI
+- `stats.{totalEarning (double), totalJobs (integer), totalHours (integer), jobSuccessScore (float), rate (float), badge, topRated, topRatedPlus}` — the JSS / earnings / hours / rate block visible on the profile
+- `location.{country, city}` (both keyword) — direct terms aggs, no `.keyword` needed
+- `upworkUsername` (keyword)
+- `recentEarnings` (float) — **trailing-12-months** earnings (current snapshot); `prevRecentEarnings` (float) — value from the **prior weekly snapshot**, pre-computed by the BF-3489 lambda so `(recent - prev) / prev` is a ready-to-use week-over-week growth signal without joining to `profile-metric-snapshot`.
+- `photoUrl` (keyword) — freelancer avatar URL
+- `createdAt` / `lastSyncedAt` / `lastSyncStartedAt` / `lastDetailSyncedAt` / etc. — sync-job metadata
+
+### `profile-agency` document shape (agency profiles)
+
+In `metajob-ro` scope. Fields (mirror Upwork's public agency page):
+
+- `upworkAgencyUid` (keyword) — **join key** with `profile-contractor.defaultAgencyUid` / `.teams[].agencyId`, and with `profile-metric-snapshot` when `entityType: agency` (`entityUid = upworkAgencyUid`)
+- `name` (text `[keyword]`) — aggregate on `name.keyword`
+- `title` (pure text) — no `.keyword`, search only
+- `description` (pure text) — no `.keyword`, search only
+- `logo` (keyword) — agency logo URL (the "avatar")
+- `country`, `region`, `city` (all keyword) — direct aggs. `country` is a **display name** ("United States", "Ukraine") — the writer uses `{term: {country: {value: name, case_insensitive: true}}}` so exact casing is tolerated.
+- `memberCountries[]` (keyword) — countries agency members live in
+- `services[]` (keyword) — Upwork **skill display names** the agency lists as services (e.g. `"Video Editing"`). The writer uses `{term: {services: <string>}}` for scope filters.
+- `recentEarnings` (double) — **trailing-12-months** earnings; `prevRecentEarnings` (double) — prior weekly snapshot, pre-computed for growth math (same pattern as `profile-contractor`)
+- `totalEarnings`, `totalRevenue`, `totalJobs`, `totalHours` — lifetime aggregates
+- `minRate`, `maxRate`, `jobSuccessScore` (all double) — headline pricing / quality signals
+- `topRatedStatus`, `topRatedPlusStatus`, `premiumProfile` (boolean), `clientFocus` (keyword), `numberOfEmployees` (keyword — bucketed string like `"10-49"`), `sponsored` (boolean), `sourceTier` (keyword)
+- `memberSinceDateTime` (date)
+- `owner.{name (text `[keyword]`), ciphertext (keyword), portrait (keyword)}` — agency owner name + avatar
+- `createdAt` / `lastSyncedAt` / `disconnectedAt` — sync-job metadata
+
+### `profile-metric-snapshot` document shape (weekly snapshots — two row types!)
+
+In `metajob-ro` scope. **Critical**: this index hosts two disjoint row types keyed by doc-id prefix (see `ElasticMetricSnapshotRepository` in the monorepo — repo doc-comment for full detail):
+
+**MRR rows** — weekly earnings snapshot per entity. Doc id: `mrr:<entityType>:<uid>:<weekKey>`. Written by the BF-3489 Lambda. Filter with `{exists: {field: recentEarnings}}` (always populated on MRR rows, since the writer's snapshot filter is `recentEarnings > 0`). Fields present on MRR rows:
+- `entityType` — `contractor` | `agency`
+- `entityUid` — join to `profile-contractor.upworkContractorUid` or `profile-agency.upworkAgencyUid`
+- `weekKey` — **ISO-8601 week key**, format `YYYY-Wxx` (e.g. `2026-W29`). Thursday-of-week owns the year.
+- `snapshotAt` (date) — exact write timestamp within the week
+- `recentEarnings` (double) — trailing-12-months earnings at the snapshot moment
+- `lifetimeEarnings` (double) — nullable; ES `exists` returns false for null, so **do NOT use `lifetimeEarnings` to discriminate MRR from SERP rows** — use `recentEarnings`
+- `totalJobs` (integer)
+
+**SERP rows** — leaderboard position for an entity within a scope, per week. Doc id: `serp:<entityType>:<uid>:<scopeType>:<scopeValue>:<weekKey>`. Written by the BF-3490 agency-rank batch ingest (and upcoming contractor SERP sweep). Filter with `{exists: {field: scopeType}}`. Fields present:
+- `entityType`, `entityUid` — same as MRR
+- `scopeType` (keyword) — currently only `"service"` in production
+- `scopeValue` (keyword) — when `scopeType: "service"`, this is the Upwork **skillUid** (NOT the display slug — join to `profile-skill.skillUid` to get the name)
+- `weekKey` (keyword) — same format as MRR
+- `snapshotAt` (date) — exact write timestamp
+- `rank` (integer) — 1 = top of the leaderboard within `(scopeType, scopeValue, weekKey)`
+- `total` (integer) — total entities with a SERP row for that scope/week (denominator for percentiles)
+
+**Row-type discrimination summary:**
+- SERP: `{exists: scopeType}` (also `{prefix: {_id: "serp:"}}` works)
+- MRR: `{exists: recentEarnings}` (or `{prefix: {_id: "mrr:"}}`)
+
+**Do NOT double-count**: an entity has one MRR row per week and multiple SERP rows per week (one per scope). If you aggregate `recentEarnings` without filtering to MRR-only, SERP rows with null `recentEarnings` will be silently excluded (fine) but any joins will confuse you.
+
+**Preferred data source for growth math**: for week-over-week growth, use `prevRecentEarnings` on `profile-contractor` / `profile-agency` directly — it's pre-computed by BF-3489 against the prior weekly snapshot. Reach for `profile-metric-snapshot` MRR rows when you need **>1-week windows** (like the 6-month cumulative growth question) or when you need the per-week series for a chart.
 
 ---
 
@@ -567,12 +628,12 @@ Role does **not** have permission on `system.views` (acceptable — no materiali
 **Elasticsearch**: requires Basic auth. Cluster at `https://<es-host>:9243`. Auth envs surfaced in code: `ES_USERNAME=elastic`, `ES_PUBLIC_LOGIN=public_prod_elastic_api`. Request credentials from the team before querying — current researcher credentials do not authorize ES.
 
 Provisioned researchers (via [ai-researcher-users](https://github.com/GigRadar/gigradar-infrastructure/tree/main/ai-researcher-users)) get the `metajob-ro` role, which reads:
-- `metajob*` — jobs firehose (8 client PII sub-fields masked via FLS — see §15.5)
+- `metajob*` — jobs firehose (8 client PII sub-fields masked via FLS — see [§15.7](#157-client-pii-fields-masked-via-fls-on-metajob))
 - `profile-skill*` — Upwork skill master
 - `profile-skill-rank*` — per-contractor per-skill rank history
-- `profile-contractor*` — freelancer profiles (name, skills, agency association, custom keywords)
-- `profile-agency*` — agency profiles (name, description, logo, country/region/city, earnings, total jobs)
-- `profile-metric-snapshot*` — weekly rank + earnings snapshots per entity (contractor or agency)
+- `profile-contractor*` — freelancer profiles (name, skills, stats, location, agency association, photoUrl)
+- `profile-agency*` — agency profiles (name, description, logo, country/region/city, earnings, rates, owner)
+- `profile-metric-snapshot*` — weekly snapshots per entity (MRR earnings rows + SERP leaderboard rows — see §8 for row-type discrimination)
 
 All `profile-*` indices are open reads — the data mirrors public Upwork profile pages, no FLS. `jobs-volume-skill-daily*` and `agent-metrics*` are still `HTTP 403` for this role.
 
@@ -712,6 +773,30 @@ These are populated reliably and work as `avg` aggs for quality analysis:
 - User: `researcher-prod`
 - Role: `metajob-ro` — index-scoped. Cluster-level endpoints (`/_cluster/health`, `/_cat/indices`) return 403; direct `/metajob/_search`, `/metajob/_count`, `/metajob/_mapping` work.
 - Default index alias: `metajob` (mapping sits under `metajob-v9-000001`).
+
+### 15.7 Client PII fields masked via FLS on `metajob*`
+
+The `metajob-ro` role applies field-level security to `metajob*` that blocks 8 client-identifying sub-fields. `_source` requests for these paths silently return without the field (not an error — just absent). Aggregations on them return zero buckets.
+
+Masked paths:
+1. `metaJob.client.company.name` — company display name
+2. `metaJob.client.company.description` — company description (free text — often contains name)
+3. `metaJob.client.company.summary` — company summary (same risk)
+4. `metaJob.client.company.websiteUrl` — direct company identifier
+5. `metaJob.client.company.id` — Upwork stable company id
+6. `metaJob.client.company.uid` — Upwork stable company uid
+7. `metaJob.client.company.recNo` — Upwork stable company record number
+8. `metaJob.meta.topBids.bids.name` — competing freelancers' display names (third-party PII)
+
+**Everything else on `metajob*` is open**, including:
+- `metaJob.client.company.{industry, size, isEnterprise, registrationDate}` — categorical, non-identifying
+- `metaJob.client.location.*` — country / city / timezone
+- `metaJob.client.stats.*` — all financial / hiring history
+- `metaJob.client.paymentVerified`
+- `metaJob.summary.buyer.logo` — client logo (avatar) is visible
+- `metaJob.augmentedData.clientNames.{companyNames, personNames, confidence}` — LLM-extracted client names from the `client-name-extractor` agent are **not** in the mask list, but this field is very sparse in prod (only populated when the extractor has run). If you can't find data via a `metaJob→profile-contractor` join through here, that's a sparse-population issue, not FLS.
+
+To probe a specific field's masking status live: `curl -u "$RO_AUTH" ".../metajob*/_search?size=1" -d '{"_source":["<field.path>"]}'` — if the field is absent from `_source` in every returned doc, it's either masked or genuinely null (query a doc where you know it should exist to disambiguate).
 
 ---
 

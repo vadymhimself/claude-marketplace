@@ -165,9 +165,283 @@ The `metajob-ro` role now also grants read on:
 - `profile-skill*` (glob covers both `profile-skill` and `profile-skill-rank`)
 - `profile-contractor*` — freelancer profiles
 - `profile-agency*` — agency profiles + earnings
-- `profile-metric-snapshot*` — weekly rank/earnings snapshots per entity
+- `profile-metric-snapshot*` — weekly snapshots per entity (**two disjoint row types** — MRR + SERP; see below)
 
-All open reads — the data mirrors public Upwork profile pages. Use `profile-contractor` to enrich `profile-skill-rank` results with a freelancer's actual skill mix, `profile-agency` for agency-earnings trend analytics, and `profile-metric-snapshot` for ranking + earnings time series (both contractors and agencies).
+All open reads — the data mirrors public Upwork profile pages. Full field-type reference is in [data-reference.md §8](../../../references/data-reference.md#8-elasticsearch); the essentials for query authoring are below.
+
+### Field-type gotchas (analogous to the metajob `.keyword` trap)
+
+Same rule as `metajob*`: check the field type before writing terms aggs. Compact reference:
+
+| Index | Field | Type | Terms-agg field |
+|---|---|---|---|
+| `profile-skill` | `name` | **`keyword`** | `name` (NO `.keyword`) |
+| `profile-skill` | `slug`, `type`, `skillUid` | keyword | direct |
+| `profile-contractor` | `name`, `skills.name`, `customKeywords.name`, `title` | text `[keyword]` | append `.keyword` |
+| `profile-contractor` | `location.country`, `location.city`, `slug`, `role`, `defaultAgencyUid`, `skills.uid` | keyword | direct |
+| `profile-contractor` | `description` | pure text | search only, no aggs |
+| `profile-agency` | `name`, `owner.name` | text `[keyword]` | append `.keyword` |
+| `profile-agency` | `country`, `city`, `region`, `services`, `topRatedStatus`, `numberOfEmployees`, `clientFocus` | keyword | direct |
+| `profile-agency` | `title`, `description` | pure text | search only, no aggs |
+| `profile-metric-snapshot` | all — `entityType`, `entityUid`, `weekKey`, `scopeType`, `scopeValue` | keyword | direct |
+
+`country` in `profile-agency` is a display name (`"United States"`, `"Ukraine"`). The gigradar-monorepo writer filters with `case_insensitive: true` — exact casing is tolerated, but a `terms` agg returns whatever casing was ingested.
+
+`services[]` holds Upwork skill **display names** (e.g. `"Video Editing"`), NOT skillUids. To filter agencies by a Upwork skill, use the display name here. Note the contrast with `profile-metric-snapshot.scopeValue` (SERP rows), which is the numeric skillUid.
+
+### `profile-metric-snapshot` — two row types in one index
+
+Doc-id prefix + field-presence discriminates:
+
+| Row type | Doc-id prefix | Discriminator filter | What it holds |
+|---|---|---|---|
+| **MRR** | `mrr:<entityType>:<uid>:<weekKey>` | `{exists: {field: recentEarnings}}` | Weekly earnings snapshot per entity |
+| **SERP** | `serp:<entityType>:<uid>:<scopeType>:<scopeValue>:<weekKey>` | `{exists: {field: scopeType}}` | Weekly leaderboard rank per (entity, scope) |
+
+**Do not use `lifetimeEarnings` to discriminate** — it's nullable, ES `exists` returns false for stored null. Always use `recentEarnings` (MRR) or `scopeType` (SERP).
+
+**`weekKey` format**: `YYYY-Wxx` (ISO-8601, e.g. `2026-W29`, Thursday owns the year). Order by `snapshotAt desc` when you want "latest wins" — different weeks and mid-week reruns both show up correctly.
+
+**When to use each**: prefer `prevRecentEarnings` on `profile-contractor` / `profile-agency` for **week-over-week** growth (pre-computed by BF-3489). Reach for MRR rows here when you need **multi-week windows** or the per-week series. Reach for SERP rows for per-skill leaderboard positions over time.
+
+### Skill uid ↔ name lookup
+
+Cheap one-shot to build a `{skillUid: name}` map:
+
+```json
+POST /profile-skill/_search?size=10000
+{
+  "_source": ["skillUid", "name"],
+  "sort": [{"skillUid": "asc"}]
+}
+```
+
+### Skill competitiveness (distinct-contractor supply)
+
+```json
+POST /profile-skill-rank/_search?size=0
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"skillUid": "<uid-from-profile-skill>"}},
+        {"range": {"createdAt": {"gte": "2026-05-01", "lt": "2026-06-01"}}}
+      ]
+    }
+  },
+  "aggs": {
+    "distinct_contractors": {"cardinality": {"field": "upworkContractorUid"}},
+    "top50_share": {
+      "filter": {"range": {"rank": {"lte": 50}}},
+      "aggs": {"contractors_in_top50": {"cardinality": {"field": "upworkContractorUid"}}}
+    }
+  }
+}
+```
+
+### Rank drift for a specific contractor
+
+```json
+POST /profile-skill-rank/_search?size=0
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"upworkContractorUid": "~<contractor-uid>"}},
+        {"range": {"createdAt": {"gte": "now-90d"}}}
+      ]
+    }
+  },
+  "aggs": {
+    "by_skill": {
+      "terms": {"field": "skillUid", "size": 20},
+      "aggs": {
+        "rank_by_week": {
+          "date_histogram": {"field": "createdAt", "calendar_interval": "week"},
+          "aggs": {"min_rank": {"min": {"field": "rank"}}}
+        }
+      }
+    }
+  }
+}
+```
+
+### Combined: growing-supply, growing-demand skills
+
+Join two aggregations client-side:
+- `metajob` — `doc_count` per `metaJob.skills.name.keyword` per window → demand delta
+- `profile-skill-rank` — distinct `upworkContractorUid` per `skillUid` per window (map uid→name via `profile-skill`) → supply delta
+
+Sweet spot for GigRadar: **demand growing faster than supply** — skills where our customers can win more jobs. Include this cross-index diff in monthly market reports.
+
+### Top freelancers ranking for a skill + full profile hydration
+
+Three-step join: `profile-skill` (name → uid) → `profile-skill-rank` (uid → top contractors) → `profile-contractor` (contractor uid → full profile).
+
+```json
+POST /profile-skill/_search?size=1
+{"query": {"term": {"name": "Video Editing"}}, "_source": ["skillUid", "name"]}
+```
+
+```json
+POST /profile-skill-rank/_search
+{
+  "size": 5,
+  "_source": ["upworkContractorUid", "rank", "createdAt"],
+  "query": {
+    "bool": {
+      "filter": [
+        {"term": {"skillUid": "<uid-from-step-1>"}},
+        {"range": {"createdAt": {"gte": "now-14d"}}}
+      ]
+    }
+  },
+  "sort": [{"rank": "asc"}, {"createdAt": "desc"}],
+  "collapse": {"field": "upworkContractorUid"}
+}
+```
+
+`collapse` deduplicates by contractor when the same contractor appears in multiple recent snapshots. Then:
+
+```json
+POST /profile-contractor/_search
+{
+  "query": {"terms": {"upworkContractorUid": ["<uid1>", "<uid2>", ...]}},
+  "_source": [
+    "upworkContractorUid", "name", "title", "photoUrl",
+    "skills", "defaultAgencyUid",
+    "stats.jobSuccessScore", "stats.totalEarning", "stats.totalHours",
+    "location.country", "location.city",
+    "recentEarnings", "prevRecentEarnings"
+  ]
+}
+```
+
+Optional 4th call: hydrate `defaultAgencyUid` via `profile-agency` `{terms: {upworkAgencyUid: [...]}}`.
+
+### Top-N agencies by week-over-week earnings growth (cheap version)
+
+Uses `prevRecentEarnings` pre-computed on `profile-agency` — no metric-snapshot join needed.
+
+```json
+POST /profile-agency/_search
+{
+  "size": 20,
+  "_source": ["upworkAgencyUid", "name", "country", "recentEarnings", "prevRecentEarnings", "logo"],
+  "query": {
+    "bool": {
+      "filter": [
+        {"range": {"recentEarnings": {"gt": 0}}},
+        {"range": {"prevRecentEarnings": {"gt": 0}}}
+      ]
+    }
+  },
+  "runtime_mappings": {
+    "growth_pct": {
+      "type": "double",
+      "script": {"source": "double p = doc['prevRecentEarnings'].value; if (p > 0) emit((doc['recentEarnings'].value - p) / p);"}
+    }
+  },
+  "fields": ["growth_pct"],
+  "sort": [{"growth_pct": {"order": "desc"}}]
+}
+```
+
+### Top-N agencies by 6-month earnings growth (proper time-series)
+
+Use `profile-metric-snapshot` MRR rows. Compare `recentEarnings` at two `weekKey`s ~26 weeks apart per agency.
+
+```json
+POST /profile-metric-snapshot/_search
+{
+  "size": 0,
+  "query": {
+    "bool": {
+      "filter": [
+        {"exists": {"field": "recentEarnings"}},
+        {"term": {"entityType": "agency"}},
+        {"terms": {"weekKey": ["2026-W03", "2026-W29"]}}
+      ]
+    }
+  },
+  "aggs": {
+    "by_agency": {
+      "terms": {"field": "entityUid", "size": 5000},
+      "aggs": {
+        "start": {
+          "filter": {"term": {"weekKey": "2026-W03"}},
+          "aggs": {"earn": {"max": {"field": "recentEarnings"}}}
+        },
+        "end": {
+          "filter": {"term": {"weekKey": "2026-W29"}},
+          "aggs": {"earn": {"max": {"field": "recentEarnings"}}}
+        },
+        "delta_pct": {
+          "bucket_script": {
+            "buckets_path": {"s": "start>earn", "e": "end>earn"},
+            "script": "params.s > 0 ? (params.e - params.s) / params.s : 0"
+          }
+        },
+        "sort_by_delta": {"bucket_sort": {"sort": [{"delta_pct": "desc"}], "size": 20}}
+      }
+    }
+  }
+}
+```
+
+Then bulk-hydrate the 20 winning `entityUid`s via `POST /profile-agency/_search {"query":{"terms":{"upworkAgencyUid":[…]}}}`.
+
+### Agency SERP rank for a skill (weekly leaderboard)
+
+```json
+POST /profile-metric-snapshot/_search
+{
+  "size": 100,
+  "query": {
+    "bool": {
+      "filter": [
+        {"exists": {"field": "scopeType"}},
+        {"term": {"entityType": "agency"}},
+        {"term": {"scopeType": "service"}},
+        {"term": {"scopeValue": "<skillUid-from-profile-skill>"}},
+        {"term": {"weekKey": "2026-W29"}}
+      ]
+    }
+  },
+  "_source": ["entityUid", "rank", "total"],
+  "sort": [{"rank": "asc"}]
+}
+```
+
+### Cross-country agency comparison (Q C from the doc-test)
+
+```json
+POST /profile-agency/_search
+{
+  "size": 0,
+  "query": {
+    "bool": {
+      "filter": [
+        {"terms": {"country": ["United States", "Ukraine"]}},
+        {"term":  {"services": "Video Editing"}}
+      ]
+    }
+  },
+  "aggs": {
+    "by_country": {
+      "terms": {"field": "country", "size": 5},
+      "aggs": {
+        "avg_recent": {"avg": {"field": "recentEarnings"}},
+        "avg_jss":    {"avg": {"field": "jobSuccessScore"}},
+        "median_min_rate": {"percentiles": {"field": "minRate", "percents": [50]}},
+        "n": {"value_count": {"field": "upworkAgencyUid"}}
+      }
+    }
+  }
+}
+```
+
+`country` is a display-name string (writer uses `case_insensitive: true` when filtering, but agg output preserves ingested casing). `services` is a display-name string too. If a country name returns 0 buckets, probe with `{terms: {country: [], size: 200}}` to see the ingested values.
 
 ### `profile-skill-rank` shape (rank history)
 
