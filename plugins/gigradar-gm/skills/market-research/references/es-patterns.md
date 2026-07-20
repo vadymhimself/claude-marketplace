@@ -247,7 +247,7 @@ POST /profile-skill-rank/_search?size=0
   "query": {
     "bool": {
       "filter": [
-        {"term": {"upworkContractorUid": "~<contractor-uid>"}},
+        {"term": {"upworkContractorUid": "~01abc..."}},  // includes leading tilde — see "Contractor uid format" below
         {"range": {"createdAt": {"gte": "now-90d"}}}
       ]
     }
@@ -306,7 +306,7 @@ POST /profile-skill-rank/_search
 ```json
 POST /profile-contractor/_search
 {
-  "query": {"terms": {"upworkContractorUid": ["<uid1>", "<uid2>", ...]}},
+  "query": {"terms": {"upworkContractorUid": ["~01abc...", "~01def...", ...]}},  // tilde included
   "_source": [
     "upworkContractorUid", "name", "title", "photoUrl",
     "skills", "defaultAgencyUid",
@@ -443,84 +443,32 @@ POST /profile-agency/_search
 
 `country` is a display-name string (writer uses `case_insensitive: true` when filtering, but agg output preserves ingested casing). `services` is a display-name string too. If a country name returns 0 buckets, probe with `{terms: {country: [], size: 200}}` to see the ingested values.
 
-### `profile-skill-rank` shape (rank history)
+### Contractor uid format
 
-Only 4 fields: `upworkContractorUid` (keyword), `skillUid` (keyword), `createdAt` (date), `rank` (integer). One doc per `(contractor, skill, day)`.
-
-`rank = 1` is top of the Upwork skill leaderboard; higher rank = worse position. Records are sparse — Upwork doesn't publish rank for every freelancer, and GigRadar only snapshots tracked skills.
-
-### `profile-skill` shape (skill master)
-
-Use it as a **name lookup** for the `skillUid` values that appear in `profile-skill-rank.skillUid` and `metaJob.skills.uid`. Fields: `skillUid`, `name`, `slug`, `type`, plus a sync-job state block that market research can ignore.
-
-Fast pattern for building a `{skillUid: name}` map — one bulk fetch:
-
+`upworkContractorUid` values include Upwork's leading `~` — e.g. `~01abc0123456789def`. Store and query the tilde as part of the string:
 ```json
-POST /profile-skill/_search?size=10000
-{
-  "_source": ["skillUid", "name"],
-  "sort": [{"skillUid": "asc"}]
-}
+{"term": {"upworkContractorUid": "~01abc0123456789def"}}
+```
+The tilde is NOT a wildcard or optional prefix. If you built a query without it, you'll get zero hits.
+
+### Computing `weekKey` values
+
+`weekKey` is ISO-8601 `YYYY-Wxx` (Thursday-of-week owns the year). Compute it locally rather than hard-coding sample dates:
+
+```bash
+# Today's weekKey
+date -u +'%G-W%V'
+# 26 weeks ago (approx 6 months)
+date -u -d '182 days ago' +'%G-W%V'  # GNU date
+date -u -v-182d +'%G-W%V'            # BSD/macOS date
 ```
 
-### Skill competitiveness — how many distinct freelancers rank for X
-
-```json
-POST /profile-skill-rank/_search?size=0
-{
-  "query": {
-    "bool": {
-      "filter": [
-        {"term": {"skillUid": "<uid-from-profile-skill>"}},
-        {"range": {"createdAt": {"gte": "2026-05-01", "lt": "2026-06-01"}}}
-      ]
-    }
-  },
-  "aggs": {
-    "distinct_contractors": {"cardinality": {"field": "upworkContractorUid"}},
-    "top50_share": {
-      "filter": {"range": {"rank": {"lte": 50}}},
-      "aggs": {"contractors_in_top50": {"cardinality": {"field": "upworkContractorUid"}}}
-    }
-  }
-}
+Python:
+```python
+import datetime as dt
+d = dt.date.today() - dt.timedelta(days=182)
+year, week, _ = d.isocalendar()
+print(f"{year}-W{week:02d}")
 ```
 
-`distinct_contractors` = supply proxy for the skill. Growing over time = more supply, harder to differentiate on that skill; shrinking = specialization opportunity. Cross-reference with `metajob` `doc_count` for the same skill to get supply vs demand.
-
-### Rank-drift for a specific contractor
-
-```json
-POST /profile-skill-rank/_search?size=0
-{
-  "query": {
-    "bool": {
-      "filter": [
-        {"term": {"upworkContractorUid": "~<contractor-uid>"}},
-        {"range": {"createdAt": {"gte": "now-90d"}}}
-      ]
-    }
-  },
-  "aggs": {
-    "by_skill": {
-      "terms": {"field": "skillUid", "size": 20},
-      "aggs": {
-        "rank_by_week": {
-          "date_histogram": {"field": "createdAt", "calendar_interval": "week"},
-          "aggs": {"min_rank": {"min": {"field": "rank"}}}
-        }
-      }
-    }
-  }
-}
-```
-
-Then feed the `min_rank` time series into whatever alerting logic you want (weekly delta > 20 = "significant drop").
-
-### Combined: growing-supply, growing-demand skills
-
-Join the outputs of:
-- `metajob` — `doc_count` per `metaJob.skills.name.keyword` for two consecutive windows → demand delta
-- `profile-skill-rank` — distinct `upworkContractorUid` per `skillUid` for the same windows (map back to skill name via `profile-skill`) → supply delta
-
-Sweet spot for GigRadar is **demand growing faster than supply** — those are skills where the market pays a premium and our customers can win more jobs. Include this cross-index diff in monthly market reports.
+**MRR retention**: `profile-metric-snapshot` is append-only — the BF-3489 handler writes weekly rows and does NOT prune. Available history goes back to when BF-3489 first ran in production (`git log gigradar-monorepo/.../mrr-snapshot-handler.ts` in the monorepo for the first-deploy date). If the earliest MRR row you need isn't there, fall back to a shorter window.
