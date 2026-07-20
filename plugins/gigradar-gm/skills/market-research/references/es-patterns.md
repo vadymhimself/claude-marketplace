@@ -159,9 +159,15 @@ When exploring a new field, first `GET /metajob-all/_mapping` (works under `meta
 
 ---
 
-## `profile-skill` + `profile-skill-rank` (added 2026-07)
+## `profile-*` indices (added 2026-07)
 
-The `metajob-ro` role now also grants read on `profile-skill*` (matches both `profile-skill` and `profile-skill-rank`). These indices are tiny compared to `metajob*` and carry no PII — full field access is fine.
+The `metajob-ro` role now also grants read on:
+- `profile-skill*` (glob covers both `profile-skill` and `profile-skill-rank`)
+- `profile-contractor*` — freelancer profiles
+- `profile-agency*` — agency profiles + earnings
+- `profile-metric-snapshot*` — weekly rank/earnings snapshots per entity
+
+All open reads — the data mirrors public Upwork profile pages. Use `profile-contractor` to enrich `profile-skill-rank` results with a freelancer's actual skill mix, `profile-agency` for agency-earnings trend analytics, and `profile-metric-snapshot` for ranking + earnings time series (both contractors and agencies).
 
 ### `profile-skill-rank` shape (rank history)
 

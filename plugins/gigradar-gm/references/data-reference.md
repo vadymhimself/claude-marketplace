@@ -395,7 +395,11 @@ Useful queries:
 - **Rank-drift alerts** — for a fixed `upworkContractorUid`, plot `rank` over time and flag deltas above a threshold.
 - **Freelancer supply proxy** — for a skill, how the top-50 leaderboard churns week-over-week is a decent proxy for how competitive the skill is becoming.
 
-`profile-contractor`, `profile-agency`, and `profile-metric-snapshot` are **NOT** in the `metajob-ro` scope (they carry freelancer/agency PII — name, description, earnings). If a research question needs them, request an FLS-masked variant of the role rather than opening those indices wholesale.
+`profile-contractor`, `profile-agency`, and `profile-metric-snapshot` **are** in the `metajob-ro` scope (as of 2026-07). They mirror public Upwork profile pages so no FLS is applied. Field shapes:
+
+- **`profile-contractor`** — `upworkContractorUid` (join key), `gigradarTeamId`, `name` (text), `slug`, `role`, `defaultAgencyUid`, `teams[].{agencyId, gigradarTeamId}`, `skills[].{uid, name, order}`, `customKeywords[].{uid, name, order}`. Useful for enriching rank data with the freelancer's actual skill mix.
+- **`profile-agency`** — `upworkAgencyUid`, `name`, `title`, `description` (text), `logo`, `country`, `region`, `city`, `memberCountries[]`, `services[]`, `recentEarnings`, `totalEarnings`, `totalRevenue`, `totalJobs`. Enables agency-earnings trend + geo distribution analytics.
+- **`profile-metric-snapshot`** — `entityType` (`contractor`|`agency`), `entityUid`, `weekKey`, `snapshotAt`, `recentEarnings`, `lifetimeEarnings`, `totalJobs`, `scopeType`, `scopeValue`, `rank`, `total`. Time-series companion for both contractor and agency ranking / earnings trajectories.
 
 ---
 
@@ -563,11 +567,14 @@ Role does **not** have permission on `system.views` (acceptable — no materiali
 **Elasticsearch**: requires Basic auth. Cluster at `https://<es-host>:9243`. Auth envs surfaced in code: `ES_USERNAME=elastic`, `ES_PUBLIC_LOGIN=public_prod_elastic_api`. Request credentials from the team before querying — current researcher credentials do not authorize ES.
 
 Provisioned researchers (via [ai-researcher-users](https://github.com/GigRadar/gigradar-infrastructure/tree/main/ai-researcher-users)) get the `metajob-ro` role, which reads:
-- `metajob*` — jobs firehose, full field access
+- `metajob*` — jobs firehose (8 client PII sub-fields masked via FLS — see §15.5)
 - `profile-skill*` — Upwork skill master
 - `profile-skill-rank*` — per-contractor per-skill rank history
+- `profile-contractor*` — freelancer profiles (name, skills, agency association, custom keywords)
+- `profile-agency*` — agency profiles (name, description, logo, country/region/city, earnings, total jobs)
+- `profile-metric-snapshot*` — weekly rank + earnings snapshots per entity (contractor or agency)
 
-Other indices (`profile-contractor*`, `profile-agency*`, `profile-metric-snapshot*`, `jobs-volume-skill-daily*`, `agent-metrics*`) return `HTTP 403` for this role.
+All `profile-*` indices are open reads — the data mirrors public Upwork profile pages, no FLS. `jobs-volume-skill-daily*` and `agent-metrics*` are still `HTTP 403` for this role.
 
 ---
 
