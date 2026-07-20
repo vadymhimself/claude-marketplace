@@ -563,7 +563,7 @@ Role does **not** have permission on `system.views` (acceptable — no materiali
 **Elasticsearch**: requires Basic auth. Cluster at `https://<es-host>:9243`. Auth envs surfaced in code: `ES_USERNAME=elastic`, `ES_PUBLIC_LOGIN=public_prod_elastic_api`. Request credentials from the team before querying — current researcher credentials do not authorize ES.
 
 Provisioned researchers (via [ai-researcher-users](https://github.com/GigRadar/gigradar-infrastructure/tree/main/ai-researcher-users)) get the `metajob-ro` role, which reads:
-- `metajob*` — jobs firehose (client PII is field-masked; see §15.5)
+- `metajob*` — jobs firehose, full field access
 - `profile-skill*` — Upwork skill master
 - `profile-skill-rank*` — per-contractor per-skill rank history
 
