@@ -1,0 +1,34 @@
+{
+  "skill_name": "custom-proposal",
+  "notes": "Real agency-founder leads pulled from the gigradar-outreach `leads` collection. Each is a service agency (GigRadar's ICP) with a live website, spanning different niches to exercise opportunity-mining, the earnings niche table, and case-study tag matching.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build a custom GigRadar Upwork opportunity-map proposal for this lead who replied to our cold outreach: Abed Adawi, Founder & Partner at AB Marketing Group (abmarketinggroup.co). Produce a self-contained proposal.html.",
+      "lead": {"name": "Abed Adawi", "role": "Founder, Partner", "company": "AB Marketing Group", "domain": "abmarketinggroup.co", "niche_hint": "marketing agency"},
+      "expected_output": "Self-contained proposal.html: personalized hero (his photo+logo), their services, ~9 cherry-picked high-value Upwork jobs in marketing/lead-gen, profile mockup, earnings calculator (lead-gen niche), relevant case studies (marketing/lead-gen tags), HubSpot demo modal.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Create the custom opportunity-map proposal for Abubakar Shams, CEO & Co-Founder of Phaedra Solutions (phaedrasolutions.com) — he replied to our outreach. Self-contained HTML.",
+      "lead": {"name": "Abubakar Shams", "role": "CEO | Co-Founder", "company": "Phaedra Solutions", "domain": "phaedrasolutions.com", "niche_hint": "software development / IT services"},
+      "expected_output": "Proposal.html tuned to software/dev: dev/data Upwork jobs, software-development case studies (COXIT, Disoft, Kandisa, DestiLabs), software niche calculator defaults.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Make the lead magnet proposal page for Aaron Chapman, Founder & Executive Producer at Neuvant Studios (neuvantstudios.com). They're interested. One HTML file.",
+      "lead": {"name": "Aaron Chapman", "role": "Founder & Executive Producer", "company": "Neuvant Studios", "domain": "neuvantstudios.com", "niche_hint": "media production / video / creative"},
+      "expected_output": "Proposal.html tuned to video/creative: creative/production Upwork jobs, video-creative/design case studies (Alaska CGI, Plexable), design/creative calculator niche.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Build the custom GigRadar proposal for Amanda Woiner at Epic Web Studios (epicwebstudios.com), Director of Digital Marketing — replied to our sequence. Self-contained page.",
+      "lead": {"name": "Amanda Woiner", "role": "Director of Digital Marketing", "company": "Epic Web Studios", "domain": "epicwebstudios.com", "niche_hint": "web design + digital marketing"},
+      "expected_output": "Proposal.html tuned to web/digital-marketing: web-dev + marketing Upwork jobs, web-development/marketing case studies (Vestov, IGT.Digital), web/marketing calculator niche.",
+      "files": []
+    }
+  ]
+}

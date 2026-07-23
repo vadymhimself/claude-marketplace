@@ -1,0 +1,1055 @@
+<!--
+  ===========================================================================
+  GigRadar CRM trial funnel — self-contained proposal partial
+  Ported faithfully from gigradar-website /public/crm (index.html + app.js + forms.js + styles.css).
+
+  INTEGRATION NOTE
+  - Scroll target:      this block is <section id="trial">. Wire any external
+                        "Start free trial" button to scroll here (e.g. href="#trial"
+                        or el.scrollIntoView). Buttons INSIDE this section open the
+                        capture modal directly.
+  - Globals expected:   window.posthog (optional). If present, the SAME events fire
+                        as on the live site: crm_checkout_started, crm_checkout_capture_failed,
+                        AND posthog.identify(email, {...lead + answers}) on submit to stitch the
+                        anonymous session to the known lead. Guarded with typeof posthog !== 'undefined'
+                        — never re-inits posthog. window.GR.track is used if present, otherwise skipped.
+  - Lead prefill:       OPTIONAL but recommended. The capture modal only ASKS the two things we do
+                        not know (Upwork accounts + company monthly revenue); everything else is a
+                        HIDDEN, pre-filled input read from the proposal's global lead JSON:
+                          <script id="lead-data" type="application/json">
+                            { "trialPrefill": { "firstname","lastname","email","company","website",
+                                                "upworkUrl","country","dial","phone","leadId" } }
+                          </script>
+                        Missing/absent lead-data is safe: hidden fields go blank, identify is skipped,
+                        and the lead still reaches Stripe. No other lead data needed. All CSS prefixed
+                        crmt-*, tokens scoped to #trial, one IIFE. Modal appended INSIDE #trial.
+  - Assets:             referenced by absolute URL (flag CDN + inline SVG data-URIs).
+  - Backend calls:      fire-and-forget, keepalive, NEVER block the buy (trial path only):
+                          POST https://gigradar.io/api/hubspot/step1
+                          POST https://gigradar.io/api/hubspot/tier3
+                        (payloads now carry company/website + upworkAccounts + monthlyRevenue.)
+  - NEVER DISQUALIFY:   every lead — ANY country/tier — reaches the real Stripe checkout on submit.
+                        The old getCountryTier -> trial-thank-you fallback has been REMOVED.
+  - Stripe (REAL, e2e): Basic trial -> https://buy.stripe.com/9B6bJ24if78vb5w1ts4VA2K
+                        (full STRIPE map preserved in the script).
+
+  VERIFIED E2E CLICK-PATH (Basic 10-day free trial):
+    1. Click any ".crmt-js-trial" button ("Start free trial" / "Start a 10-day free trial").
+    2. openCapture('basic', true) opens the single-step capture modal (isTrial=true) with hidden
+       pre-filled identity + TWO visible questions (Upwork accounts, company monthly revenue).
+    3. Submit fires posthog.capture('crm_checkout_started', {plan,interval,ref}), then
+       posthog.identify(email, {name,company,website,upwork_url,country,phone,lead_id,
+       upwork_accounts,company_monthly_revenue}), then fire-and-forgets HubSpot step1 + tier3.
+    4. redirect() sets location.href = STRIPE.basic.trial
+         = https://buy.stripe.com/9B6bJ24if78vb5w1ts4VA2K?prefilled_email=...&client_reference_id=crmland_basic_monthly_xxxxxx
+       — this happens for EVERY country, including tier-3 (India), with no thank-you fallback.
+    Paid plans (Pro/Unlimited via ".crmt-js-checkout") use the same 2-question modal and go to their monthly/yearly Stripe link.
+  ===========================================================================
+-->
+<section id="trial">
+  <div class="crmt-wrap">
+    <div class="crmt-sechead crmt-sechead--center">
+      <span class="crmt-eyebrow">Pricing</span>
+      <h2 class="crmt-h2">Answer every Upwork reply before it goes cold.</h2>
+      <p class="crmt-lead" style="margin-inline:auto">Every plan puts every Upwork account in one inbox, answers the first reply in your voice, and tracks every deal. Pick the plan by how many accounts you run. Pro and Unlimited add the Business Manager for faster replies, meetings, and files.</p>
+    </div>
+
+    <div class="crmt-price-stakes">
+      <p>About 4 replies land while you sleep tonight, and one might be ready to buy. Multiply that across a quarter and the replies that go cold are worth around <b>real money</b>. Laziza answers every reply in your voice, day or night, so the warm ones are still warm by 9am. All-in plans start at $199 a month. Bring your own Upwork API key and save $100 on any tier.</p>
+    </div>
+
+    <div class="crmt-price-toggle" role="group" aria-label="Billing period">
+      <button type="button" class="crmt-price-toggle__btn is-active" data-interval="monthly" aria-pressed="true">Monthly</button>
+      <button type="button" class="crmt-price-toggle__btn" data-interval="yearly" aria-pressed="false">Yearly <span class="crmt-price-toggle__save">save up to $1,198</span></button>
+    </div>
+    <p class="crmt-price-trial">Not sure which plan? <button type="button" class="crmt-price-trial__link crmt-js-trial">Start a 10-day free trial</button>. It runs on Basic, upgrade to Pro anytime.</p>
+
+    <!-- Plan cards -->
+    <div class="crmt-pt-cards">
+      <div class="crmt-pt-card crmt-plan" data-plan="basic">
+        <div class="crmt-pt-badge"></div>
+        <h3 class="crmt-pt-name">Basic</h3>
+        <p class="crmt-pt-for">Solo operators and small teams. Inbox and AI on the Upwork API.</p>
+        <ul class="crmt-pt-card__feats">
+          <li>3 Upwork accounts</li>
+          <li>Unified inbox plus Laziza AI</li>
+          <li>Scheduled follow ups, 10-stage pipeline</li>
+        </ul>
+        <div class="crmt-pt-card__foot">
+          <div class="crmt-plan__price">
+            <span class="crmt-plan__amount" data-amount-monthly="$199" data-amount-yearly="$179">$199</span>
+            <span class="crmt-plan__per">a month</span>
+          </div>
+          <p class="crmt-plan__save" data-save="$240" data-annual="$2,148"></p>
+          <p class="crmt-pt-key">Bring Your Own Key <strong>$99/mo</strong><button type="button" class="crmt-key-info" popovertarget="crmt-key-pop" aria-label="Why you need an Upwork API key">?</button></p>
+          <div class="crmt-pt-ctas">
+            <button type="button" class="crmt-btn crmt-btn--primary crmt-btn--block crmt-btn--lg crmt-plan__cta crmt-js-trial">Start free trial</button>
+            <button type="button" class="crmt-btn crmt-btn--ghost crmt-btn--sm crmt-btn--block crmt-js-checkout" data-plan="basic" data-force-paid="true"
+              data-label-monthly="Get Basic, no trial" data-label-yearly="Get Basic">Get Basic, no trial</button>
+            <p class="crmt-plan__micro"
+              data-micro-monthly="Card required. Cancel before day 10, pay nothing, then $199 a month. One free trial per team."
+              data-micro-yearly="Billed $2,148 now, or $948 with own key. Cancel Anytime.">
+              Card required. Cancel before day 10, pay nothing, then $199 a month. One free trial per team.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="crmt-pt-card crmt-pt-card--feat crmt-plan" data-plan="pro">
+        <div class="crmt-pt-badge"><span class="crmt-pt-badge__pill crmt-pt-badge__pill--primary crmt-pt-badge__pill--lg">Most agencies start here</span></div>
+        <h3 class="crmt-pt-name">Pro</h3>
+        <p class="crmt-pt-for">Growing agencies that need speed. Adds the Business Manager.</p>
+        <ul class="crmt-pt-card__feats">
+          <li>10 Upwork accounts</li>
+          <li>Everything in Basic</li>
+          <li><strong>Real time replies</strong> on Business Manager</li>
+          <li>Files in chat, up to 5 files</li>
+          <li>Book meetings inside the chat</li>
+        </ul>
+        <div class="crmt-pt-card__foot">
+          <div class="crmt-plan__price">
+            <span class="crmt-plan__amount" data-amount-monthly="$299" data-amount-yearly="$259">$299</span>
+            <span class="crmt-plan__per">a month</span>
+          </div>
+          <p class="crmt-plan__save" data-save="$480" data-annual="$3,108"></p>
+          <p class="crmt-pt-key">Bring Your Own Key <strong>$199/mo</strong><button type="button" class="crmt-key-info" popovertarget="crmt-key-pop" aria-label="Why you need an Upwork API key">?</button></p>
+          <div class="crmt-pt-ctas">
+            <button type="button" class="crmt-btn crmt-btn--primary crmt-btn--block crmt-btn--lg crmt-plan__cta crmt-js-checkout" data-plan="pro">Get Pro</button>
+            <p class="crmt-plan__micro"
+              data-micro-monthly="Cancel Anytime."
+              data-micro-yearly="Billed $3,108 now, or $1,908 with own key. Cancel Anytime.">Cancel Anytime.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="crmt-pt-card crmt-plan" data-plan="unlimited">
+        <div class="crmt-pt-badge"><span class="crmt-pt-badge__pill crmt-pt-badge__pill--ghost">No account limit</span></div>
+        <h3 class="crmt-pt-name">Unlimited</h3>
+        <p class="crmt-pt-for">Agencies running 10 to 30+ Upwork accounts, with no account limit.</p>
+        <ul class="crmt-pt-card__feats">
+          <li><strong>Unlimited</strong> Upwork accounts</li>
+          <li>Everything in Pro</li>
+          <li>Real time replies on Business Manager</li>
+          <li>Files in chat, meetings booked in chat</li>
+          <li>Priority support</li>
+          <li>Cost per account falls as you scale</li>
+        </ul>
+        <div class="crmt-pt-card__foot">
+          <div class="crmt-plan__price">
+            <span class="crmt-plan__amount" data-amount-monthly="$599" data-amount-yearly="$499">$599</span>
+            <span class="crmt-plan__per">a month</span>
+          </div>
+          <p class="crmt-plan__save" data-save="$1,200" data-annual="$5,988"></p>
+          <p class="crmt-pt-key">Bring Your Own Key <strong>$499/mo</strong><button type="button" class="crmt-key-info" popovertarget="crmt-key-pop" aria-label="Why you need an Upwork API key">?</button></p>
+          <div class="crmt-pt-ctas">
+            <button type="button" class="crmt-btn crmt-btn--primary crmt-btn--block crmt-btn--lg crmt-plan__cta crmt-js-checkout" data-plan="unlimited">Get Unlimited</button>
+            <p class="crmt-plan__micro"
+              data-micro-monthly="Cancel Anytime."
+              data-micro-yearly="Billed $5,988 now, or $4,788 with own key. Cancel Anytime.">Cancel Anytime.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison table -->
+    <h3 class="crmt-pt-compare-h">Compare all features</h3>
+    <div class="crmt-pt-wrap">
+      <div class="crmt-price-table">
+
+        <div class="crmt-ptcell crmt-ptcell--thead crmt-ptcell--thlbl">Features</div>
+        <div class="crmt-ptcell crmt-ptcell--thead crmt-ptcell--b"><span class="crmt-pt-th__nm">Basic</span><span class="crmt-pt-th__pr" data-iv-monthly="$199/mo" data-iv-yearly="$179/mo">$199/mo</span></div>
+        <div class="crmt-ptcell crmt-ptcell--thead crmt-ptcell--p"><span class="crmt-pt-th__nm">Pro</span><span class="crmt-pt-th__pr" data-iv-monthly="$299/mo" data-iv-yearly="$259/mo">$299/mo</span></div>
+        <div class="crmt-ptcell crmt-ptcell--thead crmt-ptcell--u"><span class="crmt-pt-th__nm">Unlimited</span><span class="crmt-pt-th__pr" data-iv-monthly="$599/mo" data-iv-yearly="$499/mo">$599/mo</span></div>
+
+        <div class="crmt-ptcell crmt-ptcell--sec">Scale</div>
+
+        <div class="crmt-ptcell crmt-ptcell--lbl">Upwork accounts connected</div>
+        <div class="crmt-ptcell crmt-ptcell--val crmt-ptcell--b">3</div>
+        <div class="crmt-ptcell crmt-ptcell--val crmt-ptcell--p">10</div>
+        <div class="crmt-ptcell crmt-ptcell--val crmt-ptcell--u crmt-ptcell--pop">No limit</div>
+
+        <div class="crmt-ptcell crmt-ptcell--lbl crmt-ptcell--soft">Cost per connected account</div>
+        <div class="crmt-ptcell crmt-ptcell--val crmt-ptcell--b crmt-ptcell--soft"><span data-iv-monthly="&#8776; $66" data-iv-yearly="&#8776; $60">&#8776; $66</span></div>
+        <div class="crmt-ptcell crmt-ptcell--val crmt-ptcell--p crmt-ptcell--soft"><span data-iv-monthly="&#8776; $30" data-iv-yearly="&#8776; $26">&#8776; $30</span></div>
+        <div class="crmt-ptcell crmt-ptcell--val crmt-ptcell--u crmt-ptcell--soft">Falls as you scale</div>
+
+        <div class="crmt-ptcell crmt-ptcell--sec">Inbox and AI, on every plan</div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">One inbox for every account</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Laziza AI: first reply in your voice</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Scheduled follow ups</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">10-stage deal pipeline</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Team seats, individual logins</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--sec">Business Manager, on Pro and up</div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Business Manager connection</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-da" aria-label="Not included">&#8212;</span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Faster replies</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-da" aria-label="Not included">&#8212;</span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Book meetings inside the chat</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-da" aria-label="Not included">&#8212;</span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Send and receive files (5 files, 20 MB each)</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--b"><span class="crmt-pt-da" aria-label="Not included">&#8212;</span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--p"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--u"><span class="crmt-pt-ck" aria-label="Included"></span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--sec">Auto Bidding</div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Auto Bidding, apply to matching jobs<button type="button" class="crmt-key-info" popovertarget="crmt-ab-pop" aria-label="How Auto Bidding works">?</button></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--b"><span class="crmt-pt-da" aria-label="Not included">&#8212;</span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--p"><span>$4 / submission</span><span class="crmt-ptcell__note">pay as you go</span></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--u"><span>$4 / submission</span><span class="crmt-ptcell__note">pay as you go</span></div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">GigRadar API (optional add on)</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--muted-note">Connect your own tools to the autobidder and CRM. Contact our support for more details and use cases.</div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--sec">Upwork API key</div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl">Rented key included<button type="button" class="crmt-key-info" popovertarget="crmt-key-pop" aria-label="Why you need an Upwork API key">?</button></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--b">$100/mo<br><small>Free during trial</small></div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--p">$100/mo</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--u">$100/mo</div>
+
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--lbl crmt-ptcell--last-lbl">Bring Your Own Key</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--b crmt-ptcell--last">Save $100/mo</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--p crmt-ptcell--last">Save $100/mo</div>
+        <div data-collapsible="1" class="crmt-ptcell crmt-ptcell--val crmt-ptcell--u crmt-ptcell--last">Save $100/mo</div>
+
+      </div>
+      <div class="crmt-pt-toggle">
+        <button type="button" class="crmt-pt-toggle__btn" data-pt-toggle aria-expanded="false">
+          <span class="crmt-pt-toggle__label">Show all features</span>
+          <svg class="crmt-pt-toggle__chev" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- popovers -->
+    <div id="crmt-key-pop" class="crmt-pt-pop" popover>
+      <p><strong>What the API key does.</strong> It is your account's official Upwork credential. It lets GigRadar pull every chat into one inbox and send replies across all your accounts. Every plan needs one.</p>
+      <p><strong>How it works with Business Manager.</strong> On Pro and Unlimited you also connect a Business Manager. The API key is the inbox, it reads and sends your messages. The Business Manager is the upgrade on top, it carries files, books meetings in the chat, and speeds up delivery. Key on every plan, Business Manager on Pro and up.</p>
+      <p><strong>Why we rent it to you.</strong> Getting your own key from Upwork is hard. Approval takes weeks and is not guaranteed, so we rent you one and you start today.</p>
+      <p class="crmt-pt-pop__h">How to get your own key</p>
+      <ol>
+        <li>Be eligible: real name, full address with apartment number, a profile photo, a verified payment method, and a passed Upwork identity check.</li>
+        <li>Apply on Upwork's API page. Do not rush a sloppy application, it can trigger a new identity check.</li>
+        <li>Pick one permission scope and write a clear reason that matches it. A human reviews it.</li>
+        <li>Once approved, enable the rest of the scopes. No new request needed.</li>
+      </ol>
+    </div>
+    <div id="crmt-ab-pop" class="crmt-pt-pop" popover>
+      <p>GigRadar scans Upwork 24 hours a day for jobs that match your filters and ICP. It qualifies each one against your profile, then applies with a custom cover letter that answers even the tricky screening questions, so you land among the first applicants.</p>
+      <p>On Pro and Unlimited. $4 per submission, pay as you go, billed at renewal.</p>
+    </div>
+
+    <div class="crmt-price-trust">
+      <div class="crmt-price-trust__cell"><span class="crmt-price-trust__num">800+</span><span class="crmt-price-trust__lab">Agencies on GigRadar</span></div>
+      <div class="crmt-price-trust__cell"><span class="crmt-price-trust__num">$45M+</span><span class="crmt-price-trust__lab">Tracked on Upwork, 5 years</span></div>
+      <div class="crmt-price-trust__cell"><span class="crmt-price-trust__num">1M+</span><span class="crmt-price-trust__lab">Proposals analyzed</span></div>
+      <div class="crmt-price-trust__cell"><span class="crmt-price-trust__num">4.9</span><span class="crmt-price-trust__lab">Trustpilot, 456 reviews</span></div>
+    </div>
+
+    <p class="crmt-price-objection">Your team never shares an Upwork login. We connect through Upwork's official API. Cancel Anytime.</p>
+  </div>
+</section>
+
+<style>
+/* ===== GigRadar CRM trial funnel — scoped tokens + namespaced rules (crmt-*) ===== */
+#trial{
+  --paper:#F6F9FE; --paper-deep:#EDF2FB;
+  --card:#FFFFFF;
+  --ink:#14181F; --ink-2:#2D333D; --body:#3B424D; --muted:#62697A; --faint:#8C92A0;
+  --line-cool:#E7EDF4; --line-blue:#C9DDFA; --line-strong:#C9C3B1;
+  --blue:#216BEF; --blue-deep:#1852D3; --blue-soft:#F1F6FF;
+  --good-soft:#E4F6EE; --bad:#D24545;
+  --grad-btn:linear-gradient(180deg,#2E77F2 0%,#1852D3 100%);
+  --font-sans:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --fs-h2:clamp(1.7rem,2.8vw,2.5rem); --fs-lead:clamp(1.06rem,1.2vw,1.25rem);
+  --tracking-eyebrow:0.11em;
+  --r-sm:8px; --r-md:12px; --r-lg:18px; --r-xl:26px; --r-pill:999px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --shadow-1:0 1px 2px rgba(20,24,31,.04),0 0 0 1px rgba(20,24,31,.04);
+  --shadow-3:0 24px 60px -24px rgba(20,24,31,.22),0 0 0 1px rgba(20,24,31,.06);
+  --shadow-blue:0 12px 28px -10px rgba(33,107,239,.28),0 0 0 1px rgba(33,107,239,.18);
+  --shadow-pop:0 30px 70px -30px rgba(24,82,211,.38);
+
+  font-family:var(--font-sans); color:var(--body);
+  padding-block:clamp(4rem,7vw,7rem); position:relative;
+  -webkit-font-smoothing:antialiased;
+}
+#trial *, #trial *::before, #trial *::after{ box-sizing:border-box; }
+#trial h2, #trial h3, #trial p, #trial ul, #trial ol{ margin:0; }
+#trial ul{ list-style:none; padding:0; }
+#trial button{ font-family:inherit; }
+
+.crmt-wrap{ width:100%; max-width:1240px; margin-inline:auto; padding-inline:clamp(1.15rem,4vw,2.25rem); }
+.crmt-sechead{ max-width:720px; }
+.crmt-sechead--center{ margin-inline:auto; text-align:center; }
+.crmt-h2{ font-size:var(--fs-h2); line-height:1.1; color:var(--ink); margin-top:.85rem; }
+.crmt-lead{ font-size:var(--fs-lead); color:var(--body); line-height:1.5; margin-top:1rem; }
+.crmt-eyebrow{ display:inline-flex; align-items:center; gap:.55rem; font-size:12.5px; font-weight:700; letter-spacing:var(--tracking-eyebrow); text-transform:uppercase; color:var(--blue); }
+.crmt-eyebrow::before{ content:""; width:22px; height:1px; background:var(--line-strong); }
+
+/* buttons */
+.crmt-btn{ display:inline-flex; align-items:center; justify-content:center; gap:.5rem; cursor:pointer;
+  font:inherit; font-size:15px; font-weight:600; line-height:1; text-decoration:none; border:0;
+  border-radius:var(--r-pill); padding:.8rem 1.4rem; min-height:44px;
+  transition:transform var(--ease) 240ms, box-shadow var(--ease) 240ms, background var(--ease) 240ms, border-color var(--ease) 240ms; }
+.crmt-btn--primary{ color:#fff; background:var(--grad-btn); box-shadow:var(--shadow-blue); }
+.crmt-btn--primary:hover{ transform:translateY(-1px); box-shadow:var(--shadow-pop); }
+.crmt-btn--ghost{ color:var(--ink); background:var(--card); border:1px solid var(--line-strong); }
+.crmt-btn--ghost:hover{ border-color:var(--ink-2); transform:translateY(-1px); }
+.crmt-btn--lg{ padding:1.05rem 1.9rem; font-size:16px; }
+.crmt-btn--sm{ font-size:13px; padding:.4rem .9rem; min-height:0; }
+.crmt-btn--block{ width:100%; }
+
+/* stakes + toggle + trial line */
+.crmt-price-stakes{ max-width:760px; margin:1.8rem auto 0; text-align:center; }
+.crmt-price-stakes p{ color:var(--ink-2); font-size:clamp(1rem,1.35vw,1.15rem); line-height:1.55; }
+.crmt-price-stakes b{ color:var(--blue-deep); font-weight:800; }
+.crmt-price-toggle{ width:max-content; margin:2.2rem auto 0; display:flex; gap:.25rem; padding:.3rem;
+  background:var(--paper-deep); border-radius:var(--r-pill); }
+.crmt-price-toggle__btn{ appearance:none; border:0; background:transparent; cursor:pointer; font:inherit;
+  font-size:14px; font-weight:600; color:var(--muted); padding:.55rem 1.1rem; border-radius:var(--r-pill);
+  display:inline-flex; align-items:center; gap:.5rem; min-height:44px; }
+.crmt-price-toggle__btn.is-active{ background:var(--card); color:var(--ink); box-shadow:var(--shadow-1); }
+.crmt-price-toggle__save{ font-size:11.5px; font-weight:700; color:#0A6A45; background:var(--good-soft);
+  padding:.15rem .5rem; border-radius:var(--r-pill); }
+.crmt-price-trial{ text-align:center; margin:1.1rem auto 0; font-size:14px; color:var(--muted); }
+.crmt-price-trial__link{ appearance:none; border:0; background:none; padding:0; font:inherit; font-weight:700;
+  color:var(--blue-deep); text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.crmt-price-trial__link:hover{ color:var(--blue); }
+
+/* plan cards */
+.crmt-pt-cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:1.1rem; margin-top:1.8rem; align-items:stretch; }
+.crmt-plan{ position:relative; background:var(--card); border:1px solid var(--line-cool); border-radius:var(--r-xl);
+  padding:clamp(1.5rem,2.4vw,2rem); }
+.crmt-pt-card{ display:flex; flex-direction:column; }
+.crmt-pt-card.crmt-pt-card--feat{ border:2px solid var(--blue); box-shadow:0 16px 38px rgba(33,107,239,.16); }
+.crmt-pt-badge{ min-height:1.8rem; margin-bottom:.55rem; display:flex; align-items:flex-start; }
+.crmt-pt-badge__pill{ display:inline-block; font-size:11px; font-weight:700; padding:.3rem .7rem; border-radius:var(--r-pill); white-space:nowrap; line-height:1.1; }
+.crmt-pt-badge__pill--primary{ background:var(--blue); color:#fff; }
+.crmt-pt-badge__pill--lg{ font-size:12.5px; padding:.42rem 1rem; box-shadow:0 4px 12px rgba(33,107,239,.28); }
+.crmt-pt-badge__pill--ghost{ background:var(--card); color:var(--blue-deep); border:1.5px solid var(--line-blue); }
+.crmt-pt-name{ font-size:1.2rem; font-weight:700; color:var(--ink); }
+.crmt-pt-for{ font-size:12.5px; color:var(--muted); margin-top:.25rem; line-height:1.4; }
+.crmt-pt-card__feats{ list-style:none; padding:0; margin:1rem 0 0; display:flex; flex-direction:column; gap:.55rem; }
+.crmt-pt-card__feats li{ position:relative; padding-left:1.7rem; font-size:13.5px; color:var(--ink-2); line-height:1.45; font-variant-numeric:tabular-nums; }
+.crmt-pt-card__feats li::before{ content:""; position:absolute; left:0; top:.12em; width:1.15rem; height:1.15rem;
+  border-radius:50%; background:#EBF2FF url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18' fill='none'%3E%3Cpath d='M5.5 9.5L7.5 11.5L12.5 6.5' stroke='%23216BEF' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/.82rem no-repeat; }
+.crmt-pt-card__feats li strong{ color:var(--ink); font-weight:700; }
+.crmt-pt-key{ font-size:12px; color:var(--muted); margin-top:.55rem; display:flex; align-items:center; gap:.35rem; flex-wrap:nowrap; white-space:nowrap; }
+.crmt-pt-card__foot{ display:grid; grid-template-rows:auto 1.2em auto auto 2.55rem 2.6em; row-gap:0; margin-top:auto; padding-top:1.4rem; }
+.crmt-pt-card__foot .crmt-plan__price{ grid-row:1; display:block; }
+.crmt-pt-card__foot .crmt-plan__save{ grid-row:2; align-self:start; }
+.crmt-pt-card__foot .crmt-pt-key{ grid-row:3; align-self:start; margin-top:.55rem; }
+.crmt-pt-ctas{ display:contents; }
+.crmt-pt-ctas > .crmt-plan__cta{ grid-row:4; margin-top:1rem; }
+.crmt-pt-ctas > button:not(.crmt-plan__cta){ grid-row:5; align-self:start; margin-top:.45rem; }
+.crmt-pt-ctas > .crmt-plan__micro{ grid-row:6; align-self:start; margin-top:.55rem; }
+.crmt-plan__price{ margin-top:1.1rem; }
+.crmt-plan__amount{ font-size:clamp(2.4rem,4vw,3.2rem); font-weight:800; line-height:1; color:var(--ink); letter-spacing:-0.025em; font-variant-numeric:tabular-nums; }
+.crmt-plan__per{ color:#8C92A0; font-size:12px; font-weight:500; display:block; margin-top:2px; }
+.crmt-plan__save{ margin-top:4px; min-height:1.15em; font-size:11px; font-weight:600; color:#11A66B; font-feature-settings:"tnum" 1; letter-spacing:.01em; visibility:hidden; }
+.crmt-plan__save.is-on{ visibility:visible; }
+.crmt-plan__micro{ margin-top:.7rem; font-size:11px; color:var(--muted); line-height:1.45; text-align:center; }
+.crmt-key-info{ width:1.15rem; height:1.15rem; flex-shrink:0; border-radius:50%; border:1.5px solid var(--muted); background:transparent; font-size:10px; font-weight:700; cursor:pointer; color:var(--muted); padding:0; line-height:1; min-height:0; }
+.crmt-key-info:hover, .crmt-key-info:focus-visible{ border-color:var(--blue); color:var(--blue); outline:2px solid var(--blue-soft); }
+.crmt-ptcell--lbl .crmt-key-info{ margin-left:.4rem; vertical-align:middle; }
+
+/* yearly: hide Basic trial button, promote Basic buy to primary */
+#trial.crmt-is-yearly .crmt-pt-card[data-plan="basic"] .crmt-js-trial{ display:none; }
+#trial.crmt-is-yearly .crmt-pt-card[data-plan="basic"] .crmt-pt-ctas > .crmt-js-checkout{
+  grid-row:4; margin-top:1rem; background:var(--grad-btn); color:#fff; border:0; box-shadow:var(--shadow-blue);
+  font-size:16px; font-weight:600; padding:1.05rem 1.9rem; width:100%; min-height:0; }
+#trial.crmt-is-yearly .crmt-pt-card[data-plan="basic"] .crmt-pt-ctas > .crmt-js-checkout:hover{ transform:translateY(-1px); box-shadow:var(--shadow-pop); }
+
+/* comparison table */
+.crmt-pt-compare-h{ text-align:center; margin:3rem 0 0; font-size:1.25rem; font-weight:700; color:var(--ink); letter-spacing:-0.01em; }
+.crmt-pt-wrap{ position:relative; margin-top:1.3rem; background:var(--card); border:1px solid var(--line-cool); border-radius:var(--r-lg); overflow:visible; }
+.crmt-price-table{ display:grid; grid-template-columns:minmax(190px,240px) repeat(3,1fr); column-gap:14px; }
+.crmt-ptcell{ padding:.8rem 1rem; border-bottom:1px solid var(--line-cool); font-size:14px; color:var(--ink-2); }
+.crmt-ptcell--thead{ display:flex; flex-direction:column; align-items:center; gap:.12rem; padding:.7rem 1rem; background:var(--paper); border-bottom:2px solid var(--line-cool); }
+.crmt-ptcell--thlbl{ align-items:flex-start; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+.crmt-pt-th__nm{ font-weight:700; font-size:14px; color:var(--ink); }
+.crmt-pt-th__pr{ font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.crmt-ptcell--thead.crmt-ptcell--p{ background:var(--blue-soft); border-bottom-color:var(--blue); }
+.crmt-ptcell--sec{ grid-column:1 / -1; background:var(--paper-deep); font-size:10.5px; font-weight:700; letter-spacing:var(--tracking-eyebrow); text-transform:uppercase; color:var(--blue-deep); padding:.85rem 1rem; display:flex; align-items:center; gap:.55rem; }
+.crmt-ptcell--sec::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--blue); flex-shrink:0; }
+.crmt-ptcell--lbl{ background:var(--paper); font-weight:500; color:var(--ink); }
+.crmt-ptcell--soft{ color:var(--muted); font-weight:400; }
+.crmt-ptcell--soft.crmt-ptcell--val{ font-weight:500; }
+.crmt-ptcell__note{ display:block; font-size:11.5px; font-weight:400; color:var(--muted); margin-top:.25rem; }
+.crmt-ptcell--val{ text-align:center; font-weight:600; color:var(--ink); font-size:14px; }
+.crmt-ptcell--pop{ color:var(--blue-deep); font-weight:700; }
+.crmt-ptcell--muted-note{ grid-column:2 / span 3; font-size:13px; color:var(--muted); text-align:center; }
+.crmt-ptcell--last, .crmt-ptcell--last-lbl{ border-bottom:none; }
+.crmt-ptcell--last-lbl{ background:var(--paper); }
+.crmt-pt-ck{ display:inline-flex; width:1.15rem; height:1.15rem; border-radius:50%; background:#EBF2FF url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18' fill='none'%3E%3Cpath d='M5.5 9.5L7.5 11.5L12.5 6.5' stroke='%23216BEF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/.82rem no-repeat; }
+.crmt-pt-da{ color:var(--muted); font-weight:400; }
+.crmt-ptcell:has(> .crmt-pt-ck), .crmt-ptcell:has(> .crmt-pt-da){ text-align:center; }
+
+/* popovers */
+.crmt-pt-pop{ position:fixed; margin:0; inset:auto; width:min(330px,calc(100vw - 24px)); max-height:min(72vh,460px); overflow:auto;
+  background:#fff; color:var(--ink-2); border:1px solid var(--line-cool); border-radius:var(--r-md); box-shadow:var(--shadow-3);
+  padding:1rem 1.1rem; font-size:13px; line-height:1.55; z-index:1100; }
+.crmt-pt-pop p{ margin:0 0 .55rem; }
+.crmt-pt-pop p:last-child{ margin-bottom:0; }
+.crmt-pt-pop strong{ color:var(--ink); }
+.crmt-pt-pop__h{ font-weight:700; color:var(--ink); margin:.2rem 0 .25rem; }
+.crmt-pt-pop ol{ margin:.2rem 0 0; padding-left:1.1rem; }
+.crmt-pt-pop li{ margin-bottom:.35rem; }
+.crmt-pt-pop:not(:popover-open){ display:none; }
+
+/* collapsible table */
+.crmt-price-table[data-collapsed="true"] [data-collapsible]{ display:none; }
+.crmt-pt-wrap[data-fade="true"]::after{ content:""; position:absolute; left:1px; right:1px; bottom:1px; height:3.5rem;
+  background:linear-gradient(to bottom,rgba(255,255,255,0) 0%,rgba(255,255,255,.85) 60%,var(--card) 100%);
+  border-radius:0 0 var(--r-lg) var(--r-lg); pointer-events:none; }
+.crmt-pt-toggle{ display:flex; justify-content:center; padding:1.05rem 1rem 1.4rem; }
+.crmt-pt-toggle__btn{ display:inline-flex; align-items:center; gap:.5rem; background:var(--card); color:var(--blue-deep);
+  border:1px solid var(--line-blue); border-radius:var(--r-pill); padding:.65rem 1.1rem; font:inherit; font-size:14px; font-weight:600; cursor:pointer;
+  transition:transform .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease); }
+.crmt-pt-toggle__btn:hover{ background:var(--blue-soft); border-color:var(--blue); }
+.crmt-pt-toggle__btn:active{ transform:translateY(1px); }
+.crmt-pt-toggle__chev{ transition:transform .2s var(--ease); }
+.crmt-pt-toggle__btn[aria-expanded="true"] .crmt-pt-toggle__chev{ transform:rotate(180deg); }
+
+/* trust + objection */
+.crmt-price-trust{ display:flex; flex-wrap:wrap; justify-content:center; gap:clamp(1.2rem,4vw,3rem); margin:2.6rem auto 0; }
+.crmt-price-trust__cell{ text-align:center; }
+.crmt-price-trust__num{ display:block; font-size:1.5rem; font-weight:700; color:var(--ink); }
+.crmt-price-trust__lab{ display:block; font-size:12.5px; color:var(--muted); margin-top:.2rem; }
+.crmt-price-objection{ text-align:center; max-width:60ch; margin:1.8rem auto 0; font-size:13.5px; color:var(--muted); }
+
+/* responsive */
+@media (max-width:980px){
+  .crmt-pt-cards{ grid-template-columns:1fr; max-width:440px; margin-inline:auto; gap:1rem; }
+  .crmt-pt-card--feat{ order:-1; }
+  .crmt-pt-for{ min-height:0; }
+}
+@media (max-width:860px){
+  .crmt-pt-wrap{ border-radius:0; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .crmt-price-table{ min-width:720px; }
+  .crmt-ptcell--lbl, .crmt-ptcell--thlbl, .crmt-ptcell--last-lbl{ position:sticky; left:0; z-index:2; box-shadow:1px 0 0 var(--line-cool); }
+}
+
+/* ===== capture modal (built by JS, appended inside #trial) ===== */
+.crmt-co{ position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center; padding:16px; }
+.crmt-co.is-open{ display:flex; animation:crmtCoFade .2s var(--ease); }
+.crmt-co__bg{ position:absolute; inset:0; background:rgba(14,26,51,.55); backdrop-filter:blur(4px); }
+.crmt-co__panel{ position:relative; background:var(--card); border-radius:var(--r-xl); max-width:440px; width:100%;
+  max-height:92vh; overflow-y:auto; box-shadow:var(--shadow-3); padding:clamp(1.5rem,4vw,2rem); animation:crmtCoSlide .28s var(--ease); }
+.crmt-co__close{ position:absolute; top:.9rem; right:.9rem; width:30px; height:30px; border:0; background:transparent; color:var(--muted); border-radius:var(--r-sm); cursor:pointer; font-size:20px; line-height:1; }
+.crmt-co__close:hover{ background:var(--paper-deep); color:var(--ink); }
+.crmt-co__eyebrow{ font-size:11.5px; font-weight:700; letter-spacing:var(--tracking-eyebrow); text-transform:uppercase; color:var(--blue); }
+.crmt-co__title{ font-size:1.25rem; font-weight:700; color:var(--ink); margin:.5rem 0 .35rem; line-height:1.22; }
+.crmt-co__sub{ font-size:13.5px; color:var(--muted); line-height:1.5; margin-bottom:1.1rem; }
+.crmt-co__row{ display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.7rem; }
+.crmt-co__field{ margin-bottom:.7rem; }
+.crmt-co label{ display:block; font-size:11.5px; font-weight:600; color:var(--body); margin-bottom:.35rem; }
+.crmt-co input, .crmt-co select{ width:100%; box-sizing:border-box; background:var(--paper); border:1px solid var(--line-cool);
+  border-radius:var(--r-md); padding:.7rem .8rem; font:inherit; font-size:14px; color:var(--ink); appearance:none; -webkit-appearance:none; }
+.crmt-co select{ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4L6 8L10 4' stroke='%236C82A4' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .8rem center; padding-right:2rem; cursor:pointer; }
+.crmt-co input:focus, .crmt-co select:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(33,107,239,.45); }
+.crmt-co__err{ display:none; color:var(--bad); font-size:12px; margin-top:.3rem; }
+.crmt-co__err.show{ display:block; }
+.crmt-co__req{ color:#dc2626; margin-left:.15rem; }
+.crmt-co__hint{ font-size:11px; color:var(--muted); margin:-.35rem 0 .1rem; }
+.crmt-co textarea{ width:100%; box-sizing:border-box; background:var(--paper); border:1px solid var(--line-cool);
+  border-radius:var(--r-md); padding:.7rem .8rem; font:inherit; font-size:14px; color:var(--ink); resize:vertical; min-height:4.4rem; }
+.crmt-co textarea:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(33,107,239,.45); }
+.crmt-co__phone{ display:flex; gap:.5rem; align-items:stretch; }
+.crmt-co__phone .crmt-combo{ width:7.4rem; flex-shrink:0; }
+.crmt-co__phone input[name="phone"]{ flex:1; min-width:0; }
+.crmt-combo{ position:relative; width:100%; }
+.crmt-combo__btn{ width:100%; box-sizing:border-box; display:flex; align-items:center; gap:.5rem; height:100%;
+  background:var(--paper); border:1px solid var(--line-cool); border-radius:var(--r-md); padding:.7rem .8rem;
+  font:inherit; font-size:14px; color:var(--ink); cursor:pointer; text-align:left; min-height:0; }
+.crmt-combo__btn:focus-visible{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(33,107,239,.45); }
+.crmt-combo__flag{ width:1.25rem; height:.85rem; flex-shrink:0; border-radius:2px; background-size:cover; background-position:center; box-shadow:0 0 0 1px rgba(0,0,0,.06); }
+.crmt-combo__label{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.crmt-combo__label.is-ph{ color:#5c6a7e; }
+.crmt-combo__chev{ flex-shrink:0; }
+.crmt-combo__pop{ position:absolute; z-index:5; top:calc(100% + 4px); left:0; right:0; background:#fff;
+  border:1px solid var(--line-cool); border-radius:var(--r-md); box-shadow:var(--shadow-3); padding:.4rem; }
+.crmt-co__phone .crmt-combo__pop{ width:16rem; right:auto; }
+.crmt-combo__search{ width:100%; box-sizing:border-box; background:var(--paper); border:1px solid var(--line-cool);
+  border-radius:var(--r-sm); padding:.5rem .6rem; font:inherit; font-size:13.5px; margin-bottom:.35rem; }
+.crmt-combo__search:focus{ outline:none; border-color:var(--blue); }
+.crmt-combo__list{ list-style:none; margin:0; padding:0; max-height:12rem; overflow-y:auto; }
+.crmt-combo__opt{ display:flex; align-items:center; gap:.5rem; padding:.45rem .55rem; border-radius:var(--r-sm); cursor:pointer; font-size:13.5px; color:var(--ink); }
+.crmt-combo__opt:hover, .crmt-combo__opt.is-hi{ background:var(--blue-soft); }
+.crmt-combo__optname{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.crmt-combo__optdial{ color:var(--muted); font-variant-numeric:tabular-nums; }
+.crmt-wiz__prog{ display:flex; align-items:center; gap:.85rem; margin:.1rem 0 1.2rem; }
+.crmt-wiz__bar{ flex:1; height:6px; background:var(--line-cool); border-radius:var(--r-pill); overflow:hidden; }
+.crmt-wiz__fill{ display:block; height:100%; width:100%; background:var(--grad-btn); border-radius:var(--r-pill); transform-origin:left center; transform:scaleX(.34); transition:transform .42s var(--ease); }
+.crmt-wiz__count{ font-size:12px; font-weight:700; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.crmt-step{ display:none; }
+.crmt-step.is-active{ display:block; animation:crmtStepIn .34s var(--ease) both; }
+.crmt-step__h{ font-size:1.05rem; font-weight:700; color:var(--ink); margin:0 0 .95rem; letter-spacing:-0.01em; }
+.crmt-step__nav{ display:flex; gap:.4rem; align-items:center; margin-top:1.15rem; }
+.crmt-step__nav .crmt-btn--block{ width:auto; flex:1; }
+.crmt-step__back{ flex-shrink:0; background:none; border:0; padding:.7rem .55rem; font:inherit; font-size:14px; font-weight:600; color:var(--muted); cursor:pointer; min-height:0; }
+.crmt-step__back::before{ content:'\2190'; margin-right:.35rem; }
+.crmt-step__back:hover{ color:var(--ink); }
+.crmt-co__fine{ font-size:11px; color:var(--muted); text-align:center; margin-top:.85rem; line-height:1.5; }
+.crmt-co__altcta{ display:flex; flex-direction:column; gap:.55rem; margin-top:.4rem; }
+.crmt-co__order{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25rem .75rem;
+  background:var(--blue-soft); border:1px solid var(--line-blue); border-radius:var(--r-md); padding:.7rem .85rem; margin-bottom:1rem; }
+.crmt-co__order-plan{ font-size:13.5px; font-weight:700; color:var(--ink); }
+.crmt-co__order-price{ font-size:13px; color:var(--ink-2); }
+@keyframes crmtCoFade{ from{opacity:0} to{opacity:1} }
+@keyframes crmtCoSlide{ from{opacity:0; transform:translateY(12px) scale(.98)} to{opacity:1; transform:translateY(0) scale(1)} }
+@keyframes crmtStepIn{ from{opacity:0; transform:translateX(18px)} to{opacity:1; transform:none} }
+@media (max-width:480px){
+  .crmt-co__row{ grid-template-columns:1fr; }
+  .crmt-co input, .crmt-co select, .crmt-co textarea, .crmt-combo__btn, .crmt-combo__search{ font-size:16px; }
+  .crmt-co__phone .crmt-combo{ width:6.6rem; }
+}
+@media (prefers-reduced-motion:reduce){
+  .crmt-co.is-open, .crmt-co__panel, .crmt-step.is-active{ animation:none; }
+}
+</style>
+
+<script>
+/* GigRadar CRM trial funnel — single IIFE, no globals leaked. */
+(function () {
+  'use strict';
+  var root = document.getElementById('trial');
+  if (!root || root.getAttribute('data-crmt-init')) return;
+  root.setAttribute('data-crmt-init', '1');
+
+  var $ = function (s, e) { return (e || root).querySelector(s); };
+  var $$ = function (s, e) { return Array.prototype.slice.call((e || root).querySelectorAll(s)); };
+
+  /* ---------------- GRForms helpers (inlined) ---------------- */
+  var TIER1 = ["Austria","Australia","Belgium","Canada","Switzerland","Germany","Denmark","Spain","Finland","France","United Kingdom","Ireland","Italy","Japan","Luxembourg","Netherlands","Norway","New Zealand","Sweden","United States","Poland","Ukraine","Cyprus"];
+  var TIER2 = ["Andorra","Bahamas","Belarus","Bulgaria","China","Croatia","Greece","Hong Kong","Hungary","Iceland","Israel","Kazakhstan","Latvia","Lithuania","Mexico","Montenegro","Portugal","Puerto Rico","Russia","Saudi Arabia","Singapore","Slovakia","Slovenia","South Africa","South Korea","Turkey","United Arab Emirates"];
+  function getCountryTier(country) {
+    if (TIER1.indexOf(country) !== -1) return 1;
+    if (TIER2.indexOf(country) !== -1) return 2;
+    return 3;
+  }
+  var DIAL_CODES = [
+    {code:"93",label:"+93",country:"Afghanistan",iso:"af"},{code:"213",label:"+213",country:"Algeria",iso:"dz"},{code:"355",label:"+355",country:"Albania",iso:"al"},{code:"376",label:"+376",country:"Andorra",iso:"ad"},{code:"54",label:"+54",country:"Argentina",iso:"ar"},{code:"374",label:"+374",country:"Armenia",iso:"am"},{code:"61",label:"+61",country:"Australia",iso:"au"},{code:"43",label:"+43",country:"Austria",iso:"at"},{code:"994",label:"+994",country:"Azerbaijan",iso:"az"},{code:"973",label:"+973",country:"Bahrain",iso:"bh"},{code:"880",label:"+880",country:"Bangladesh",iso:"bd"},{code:"1246",label:"+1",country:"Barbados",iso:"bb"},{code:"375",label:"+375",country:"Belarus",iso:"by"},{code:"32",label:"+32",country:"Belgium",iso:"be"},{code:"591",label:"+591",country:"Bolivia",iso:"bo"},{code:"387",label:"+387",country:"Bosnia & Herzegovina",iso:"ba"},{code:"55",label:"+55",country:"Brazil",iso:"br"},{code:"359",label:"+359",country:"Bulgaria",iso:"bg"},{code:"855",label:"+855",country:"Cambodia",iso:"kh"},{code:"237",label:"+237",country:"Cameroon",iso:"cm"},{code:"1",label:"+1",country:"Canada",iso:"ca"},{code:"56",label:"+56",country:"Chile",iso:"cl"},{code:"86",label:"+86",country:"China",iso:"cn"},{code:"57",label:"+57",country:"Colombia",iso:"co"},{code:"506",label:"+506",country:"Costa Rica",iso:"cr"},{code:"225",label:"+225",country:"Côte d'Ivoire",iso:"ci"},{code:"385",label:"+385",country:"Croatia",iso:"hr"},{code:"53",label:"+53",country:"Cuba",iso:"cu"},{code:"357",label:"+357",country:"Cyprus",iso:"cy"},{code:"420",label:"+420",country:"Czech Republic",iso:"cz"},{code:"45",label:"+45",country:"Denmark",iso:"dk"},{code:"1809",label:"+1",country:"Dominican Republic",iso:"do"},{code:"593",label:"+593",country:"Ecuador",iso:"ec"},{code:"20",label:"+20",country:"Egypt",iso:"eg"},{code:"503",label:"+503",country:"El Salvador",iso:"sv"},{code:"372",label:"+372",country:"Estonia",iso:"ee"},{code:"251",label:"+251",country:"Ethiopia",iso:"et"},{code:"679",label:"+679",country:"Fiji",iso:"fj"},{code:"358",label:"+358",country:"Finland",iso:"fi"},{code:"33",label:"+33",country:"France",iso:"fr"},{code:"995",label:"+995",country:"Georgia",iso:"ge"},{code:"49",label:"+49",country:"Germany",iso:"de"},{code:"233",label:"+233",country:"Ghana",iso:"gh"},{code:"30",label:"+30",country:"Greece",iso:"gr"},{code:"502",label:"+502",country:"Guatemala",iso:"gt"},{code:"504",label:"+504",country:"Honduras",iso:"hn"},{code:"852",label:"+852",country:"Hong Kong",iso:"hk"},{code:"36",label:"+36",country:"Hungary",iso:"hu"},{code:"354",label:"+354",country:"Iceland",iso:"is"},{code:"91",label:"+91",country:"India",iso:"in"},{code:"62",label:"+62",country:"Indonesia",iso:"id"},{code:"98",label:"+98",country:"Iran",iso:"ir"},{code:"353",label:"+353",country:"Ireland",iso:"ie"},{code:"972",label:"+972",country:"Israel",iso:"il"},{code:"39",label:"+39",country:"Italy",iso:"it"},{code:"1876",label:"+1",country:"Jamaica",iso:"jm"},{code:"81",label:"+81",country:"Japan",iso:"jp"},{code:"962",label:"+962",country:"Jordan",iso:"jo"},{code:"254",label:"+254",country:"Kenya",iso:"ke"},{code:"383",label:"+383",country:"Kosovo",iso:"xk"},{code:"965",label:"+965",country:"Kuwait",iso:"kw"},{code:"996",label:"+996",country:"Kyrgyzstan",iso:"kg"},{code:"856",label:"+856",country:"Laos",iso:"la"},{code:"371",label:"+371",country:"Latvia",iso:"lv"},{code:"961",label:"+961",country:"Lebanon",iso:"lb"},{code:"218",label:"+218",country:"Libya",iso:"ly"},{code:"423",label:"+423",country:"Liechtenstein",iso:"li"},{code:"370",label:"+370",country:"Lithuania",iso:"lt"},{code:"352",label:"+352",country:"Luxembourg",iso:"lu"},{code:"853",label:"+853",country:"Macau",iso:"mo"},{code:"261",label:"+261",country:"Madagascar",iso:"mg"},{code:"60",label:"+60",country:"Malaysia",iso:"my"},{code:"960",label:"+960",country:"Maldives",iso:"mv"},{code:"356",label:"+356",country:"Malta",iso:"mt"},{code:"52",label:"+52",country:"Mexico",iso:"mx"},{code:"373",label:"+373",country:"Moldova",iso:"md"},{code:"377",label:"+377",country:"Monaco",iso:"mc"},{code:"976",label:"+976",country:"Mongolia",iso:"mn"},{code:"382",label:"+382",country:"Montenegro",iso:"me"},{code:"212",label:"+212",country:"Morocco",iso:"ma"},{code:"258",label:"+258",country:"Mozambique",iso:"mz"},{code:"95",label:"+95",country:"Myanmar",iso:"mm"},{code:"977",label:"+977",country:"Nepal",iso:"np"},{code:"31",label:"+31",country:"Netherlands",iso:"nl"},{code:"64",label:"+64",country:"New Zealand",iso:"nz"},{code:"505",label:"+505",country:"Nicaragua",iso:"ni"},{code:"234",label:"+234",country:"Nigeria",iso:"ng"},{code:"389",label:"+389",country:"North Macedonia",iso:"mk"},{code:"47",label:"+47",country:"Norway",iso:"no"},{code:"968",label:"+968",country:"Oman",iso:"om"},{code:"92",label:"+92",country:"Pakistan",iso:"pk"},{code:"507",label:"+507",country:"Panama",iso:"pa"},{code:"675",label:"+675",country:"Papua New Guinea",iso:"pg"},{code:"595",label:"+595",country:"Paraguay",iso:"py"},{code:"51",label:"+51",country:"Peru",iso:"pe"},{code:"63",label:"+63",country:"Philippines",iso:"ph"},{code:"48",label:"+48",country:"Poland",iso:"pl"},{code:"351",label:"+351",country:"Portugal",iso:"pt"},{code:"974",label:"+974",country:"Qatar",iso:"qa"},{code:"40",label:"+40",country:"Romania",iso:"ro"},{code:"7",label:"+7",country:"Kazakhstan",iso:"kz"},{code:"7",label:"+7",country:"Russia",iso:"ru"},{code:"250",label:"+250",country:"Rwanda",iso:"rw"},{code:"378",label:"+378",country:"San Marino",iso:"sm"},{code:"966",label:"+966",country:"Saudi Arabia",iso:"sa"},{code:"221",label:"+221",country:"Senegal",iso:"sn"},{code:"381",label:"+381",country:"Serbia",iso:"rs"},{code:"65",label:"+65",country:"Singapore",iso:"sg"},{code:"421",label:"+421",country:"Slovakia",iso:"sk"},{code:"386",label:"+386",country:"Slovenia",iso:"si"},{code:"27",label:"+27",country:"South Africa",iso:"za"},{code:"82",label:"+82",country:"South Korea",iso:"kr"},{code:"34",label:"+34",country:"Spain",iso:"es"},{code:"94",label:"+94",country:"Sri Lanka",iso:"lk"},{code:"249",label:"+249",country:"Sudan",iso:"sd"},{code:"46",label:"+46",country:"Sweden",iso:"se"},{code:"41",label:"+41",country:"Switzerland",iso:"ch"},{code:"886",label:"+886",country:"Taiwan",iso:"tw"},{code:"992",label:"+992",country:"Tajikistan",iso:"tj"},{code:"255",label:"+255",country:"Tanzania",iso:"tz"},{code:"66",label:"+66",country:"Thailand",iso:"th"},{code:"1868",label:"+1",country:"Trinidad & Tobago",iso:"tt"},{code:"216",label:"+216",country:"Tunisia",iso:"tn"},{code:"90",label:"+90",country:"Turkey",iso:"tr"},{code:"993",label:"+993",country:"Turkmenistan",iso:"tm"},{code:"256",label:"+256",country:"Uganda",iso:"ug"},{code:"380",label:"+380",country:"Ukraine",iso:"ua"},{code:"971",label:"+971",country:"UAE",iso:"ae"},{code:"44",label:"+44",country:"United Kingdom",iso:"gb"},{code:"1",label:"+1",country:"United States",iso:"us"},{code:"598",label:"+598",country:"Uruguay",iso:"uy"},{code:"998",label:"+998",country:"Uzbekistan",iso:"uz"},{code:"58",label:"+58",country:"Venezuela",iso:"ve"},{code:"84",label:"+84",country:"Vietnam",iso:"vn"},{code:"967",label:"+967",country:"Yemen",iso:"ye"},{code:"260",label:"+260",country:"Zambia",iso:"zm"},{code:"263",label:"+263",country:"Zimbabwe",iso:"zw"}
+  ];
+  var COUNTRIES = [
+    {name:"Afghanistan",iso:"af"},{name:"Albania",iso:"al"},{name:"Algeria",iso:"dz"},{name:"Andorra",iso:"ad"},{name:"Angola",iso:"ao"},{name:"Argentina",iso:"ar"},{name:"Armenia",iso:"am"},{name:"Australia",iso:"au"},{name:"Austria",iso:"at"},{name:"Azerbaijan",iso:"az"},{name:"Bahamas",iso:"bs"},{name:"Bahrain",iso:"bh"},{name:"Bangladesh",iso:"bd"},{name:"Barbados",iso:"bb"},{name:"Belarus",iso:"by"},{name:"Belgium",iso:"be"},{name:"Bolivia",iso:"bo"},{name:"Bosnia & Herzegovina",iso:"ba"},{name:"Brazil",iso:"br"},{name:"Bulgaria",iso:"bg"},{name:"Cambodia",iso:"kh"},{name:"Cameroon",iso:"cm"},{name:"Canada",iso:"ca"},{name:"Chile",iso:"cl"},{name:"China",iso:"cn"},{name:"Colombia",iso:"co"},{name:"Costa Rica",iso:"cr"},{name:"Côte d'Ivoire",iso:"ci"},{name:"Croatia",iso:"hr"},{name:"Cuba",iso:"cu"},{name:"Cyprus",iso:"cy"},{name:"Czech Republic",iso:"cz"},{name:"Denmark",iso:"dk"},{name:"Dominican Republic",iso:"do"},{name:"Ecuador",iso:"ec"},{name:"Egypt",iso:"eg"},{name:"El Salvador",iso:"sv"},{name:"Estonia",iso:"ee"},{name:"Ethiopia",iso:"et"},{name:"Fiji",iso:"fj"},{name:"Finland",iso:"fi"},{name:"France",iso:"fr"},{name:"Georgia",iso:"ge"},{name:"Germany",iso:"de"},{name:"Ghana",iso:"gh"},{name:"Greece",iso:"gr"},{name:"Guatemala",iso:"gt"},{name:"Honduras",iso:"hn"},{name:"Hong Kong",iso:"hk"},{name:"Hungary",iso:"hu"},{name:"Iceland",iso:"is"},{name:"India",iso:"in"},{name:"Indonesia",iso:"id"},{name:"Iran",iso:"ir"},{name:"Iraq",iso:"iq"},{name:"Ireland",iso:"ie"},{name:"Israel",iso:"il"},{name:"Italy",iso:"it"},{name:"Jamaica",iso:"jm"},{name:"Japan",iso:"jp"},{name:"Jordan",iso:"jo"},{name:"Kazakhstan",iso:"kz"},{name:"Kenya",iso:"ke"},{name:"Kosovo",iso:"xk"},{name:"Kuwait",iso:"kw"},{name:"Kyrgyzstan",iso:"kg"},{name:"Laos",iso:"la"},{name:"Latvia",iso:"lv"},{name:"Lebanon",iso:"lb"},{name:"Libya",iso:"ly"},{name:"Liechtenstein",iso:"li"},{name:"Lithuania",iso:"lt"},{name:"Luxembourg",iso:"lu"},{name:"Macau",iso:"mo"},{name:"Madagascar",iso:"mg"},{name:"Malaysia",iso:"my"},{name:"Maldives",iso:"mv"},{name:"Malta",iso:"mt"},{name:"Mexico",iso:"mx"},{name:"Moldova",iso:"md"},{name:"Monaco",iso:"mc"},{name:"Mongolia",iso:"mn"},{name:"Montenegro",iso:"me"},{name:"Morocco",iso:"ma"},{name:"Mozambique",iso:"mz"},{name:"Myanmar",iso:"mm"},{name:"Nepal",iso:"np"},{name:"Netherlands",iso:"nl"},{name:"New Zealand",iso:"nz"},{name:"Nicaragua",iso:"ni"},{name:"Nigeria",iso:"ng"},{name:"North Macedonia",iso:"mk"},{name:"Norway",iso:"no"},{name:"Oman",iso:"om"},{name:"Pakistan",iso:"pk"},{name:"Panama",iso:"pa"},{name:"Papua New Guinea",iso:"pg"},{name:"Paraguay",iso:"py"},{name:"Peru",iso:"pe"},{name:"Philippines",iso:"ph"},{name:"Poland",iso:"pl"},{name:"Portugal",iso:"pt"},{name:"Puerto Rico",iso:"pr"},{name:"Qatar",iso:"qa"},{name:"Romania",iso:"ro"},{name:"Russia",iso:"ru"},{name:"Rwanda",iso:"rw"},{name:"San Marino",iso:"sm"},{name:"Saudi Arabia",iso:"sa"},{name:"Senegal",iso:"sn"},{name:"Serbia",iso:"rs"},{name:"Singapore",iso:"sg"},{name:"Slovakia",iso:"sk"},{name:"Slovenia",iso:"si"},{name:"South Africa",iso:"za"},{name:"South Korea",iso:"kr"},{name:"Spain",iso:"es"},{name:"Sri Lanka",iso:"lk"},{name:"Sudan",iso:"sd"},{name:"Sweden",iso:"se"},{name:"Switzerland",iso:"ch"},{name:"Taiwan",iso:"tw"},{name:"Tajikistan",iso:"tj"},{name:"Tanzania",iso:"tz"},{name:"Thailand",iso:"th"},{name:"Trinidad & Tobago",iso:"tt"},{name:"Tunisia",iso:"tn"},{name:"Turkey",iso:"tr"},{name:"Turkmenistan",iso:"tm"},{name:"Uganda",iso:"ug"},{name:"Ukraine",iso:"ua"},{name:"United Arab Emirates",iso:"ae"},{name:"United Kingdom",iso:"gb"},{name:"United States",iso:"us"},{name:"Uruguay",iso:"uy"},{name:"Uzbekistan",iso:"uz"},{name:"Venezuela",iso:"ve"},{name:"Vietnam",iso:"vn"},{name:"Yemen",iso:"ye"},{name:"Zambia",iso:"zm"},{name:"Zimbabwe",iso:"zw"}
+  ];
+  function flag(iso) { return 'https://flagcdn.com/w40/' + iso + '.png'; }
+  function readUtmParams() {
+    var out = {};
+    try {
+      var q = new URLSearchParams(location.search);
+      q.forEach(function (val, key) {
+        var k = key.toLowerCase();
+        if (k.indexOf('utm_') === 0) out['gr_' + k] = val;
+        else if (k === 'ref') out.gr_ref = val;
+      });
+    } catch (e) {}
+    document.cookie.split('; ').forEach(function (c) {
+      var i = c.indexOf('='); if (i < 0) return;
+      var name = c.slice(0, i);
+      if (name.indexOf('gr_') !== 0) return;
+      var val = decodeURIComponent(c.slice(i + 1));
+      if (name.indexOf('gr_original_') === 0) out[name] = val;
+      else if (out[name] === undefined) out[name] = val;
+    });
+    return out;
+  }
+  function initCombo(rootEl, items, opts) {
+    opts = opts || {};
+    var mode = opts.mode || 'country';
+    var btn = rootEl.querySelector('.crmt-combo__btn');
+    var pop = rootEl.querySelector('.crmt-combo__pop');
+    var search = rootEl.querySelector('.crmt-combo__search');
+    var list = rootEl.querySelector('.crmt-combo__list');
+    var hidden = rootEl.querySelector('.crmt-combo__value');
+    var labelEl = btn.querySelector('.crmt-combo__label');
+    var flagEl = btn.querySelector('.crmt-combo__flag');
+    var selected = null, hi = -1, view = items;
+    function lbl(it) { return mode === 'dial' ? it.label : it.name; }
+    function close() { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    function open() {
+      pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
+      search.value = ''; render(items); setTimeout(function () { search.focus(); }, 0);
+    }
+    function choose(it) {
+      selected = it; hidden.value = mode === 'dial' ? it.code : it.name;
+      labelEl.textContent = lbl(it); labelEl.classList.remove('is-ph');
+      flagEl.style.backgroundImage = 'url(' + flag(it.iso) + ')'; flagEl.hidden = false;
+      close(); hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function render(arr) {
+      view = arr; hi = -1;
+      list.innerHTML = arr.map(function (it, i) {
+        return '<li class="crmt-combo__opt" role="option" data-i="' + i + '">' +
+          '<span class="crmt-combo__flag" style="background-image:url(' + flag(it.iso) + ')"></span>' +
+          '<span class="crmt-combo__optname">' + it.name + '</span>' +
+          (mode === 'dial' ? '<span class="crmt-combo__optdial">' + it.label + '</span>' : '') + '</li>';
+      }).join('');
+    }
+    function filter(q) {
+      q = (q || '').toLowerCase().trim();
+      if (!q) return render(items);
+      render(items.filter(function (it) {
+        return it.name.toLowerCase().indexOf(q) !== -1 || (mode === 'dial' && it.label.indexOf(q) !== -1);
+      }));
+    }
+    function move(d) {
+      var opts2 = list.querySelectorAll('.crmt-combo__opt'); if (!opts2.length) return;
+      hi = (hi + d + opts2.length) % opts2.length;
+      opts2.forEach(function (o, i) { o.classList.toggle('is-hi', i === hi); });
+      opts2[hi].scrollIntoView({ block: 'nearest' });
+    }
+    btn.addEventListener('click', function () { pop.hidden ? open() : close(); });
+    search.addEventListener('input', function () { filter(search.value); });
+    search.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (hi >= 0 && view[hi]) choose(view[hi]); }
+      else if (e.key === 'Escape') { e.stopPropagation(); close(); btn.focus(); }
+    });
+    list.addEventListener('mousedown', function (e) {
+      var li = e.target.closest('.crmt-combo__opt'); if (!li) return;
+      e.preventDefault(); choose(view[+li.getAttribute('data-i')]);
+    });
+    document.addEventListener('mousedown', function (e) { if (!rootEl.contains(e.target)) close(); });
+    if (opts.initialIso) { var fi = items.filter(function (it) { return it.iso === opts.initialIso; })[0]; if (fi) choose(fi); }
+    else if (opts.initial) { var f = items.filter(function (it) { return (mode === 'dial' ? it.code : it.name) === opts.initial; })[0]; if (f) choose(f); }
+    return { value: function () { return hidden.value; }, item: function () { return selected; } };
+  }
+  function comboHtml(name, placeholder, withDial) {
+    return '<div class="crmt-combo" data-combo>' +
+      '<button type="button" class="crmt-combo__btn" aria-haspopup="listbox" aria-expanded="false">' +
+        '<span class="crmt-combo__flag" hidden></span>' +
+        '<span class="crmt-combo__label is-ph">' + placeholder + '</span>' +
+        '<svg class="crmt-combo__chev" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#97aec3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>' +
+      '<div class="crmt-combo__pop" hidden>' +
+        '<input type="text" class="crmt-combo__search" placeholder="Search…" autocomplete="off">' +
+        '<ul class="crmt-combo__list" role="listbox"></ul>' +
+      '</div>' +
+      '<input type="hidden" class="crmt-combo__value" name="' + name + '">' +
+    '</div>';
+  }
+  var GF = { DIAL_CODES: DIAL_CODES, COUNTRIES: COUNTRIES, getCountryTier: getCountryTier, readUtmParams: readUtmParams, initCombo: initCombo, comboHtml: comboHtml };
+
+  /* ---------------- Funnel config ---------------- */
+  var STRIPE = {
+    basic:     { monthly: 'https://buy.stripe.com/14AaEYcOLakHa1sege4VA2y', yearly: 'https://buy.stripe.com/5kQ3cw9Cz64rb5w5JI4VA2B', trial: 'https://buy.stripe.com/9B6bJ24if78vb5w1ts4VA2K' },
+    pro:       { monthly: 'https://buy.stripe.com/4gMfZi5mjgJ56Pg2xw4VA2C', yearly: 'https://buy.stripe.com/cNibJ23eb3Wj4H8fki4VA2F' },
+    unlimited: { monthly: 'https://buy.stripe.com/00w8wQaGD8cz5Lcb424VA2G', yearly: 'https://buy.stripe.com/9B6eVe4if50n5Lcgom4VA2J' }
+  };
+  var PLAN_LABEL = { basic: 'Basic', pro: 'Pro', unlimited: 'Unlimited' };
+  var PRICE_INFO = {
+    basic:     { monthly: { month: '$199 a month' }, yearly: { year: '$2,148 a year', per: '$179 a month', save: '$240' } },
+    pro:       { monthly: { month: '$299 a month' }, yearly: { year: '$3,108 a year', per: '$259 a month', save: '$480' } },
+    unlimited: { monthly: { month: '$599 a month' }, yearly: { year: '$5,988 a year', per: '$499 a month', save: '$1,200' } }
+  };
+  var HS_STEP1 = 'https://gigradar.io/api/hubspot/step1';
+  var HS_TIER3 = 'https://gigradar.io/api/hubspot/tier3';
+
+  /* Known lead data injected by the proposal (never disqualified — every lead reaches Stripe).
+     Read from a JSON island: an element with id="lead-data" of type application/json whose text is
+     { "trialPrefill": { firstname,lastname,email,company,website,upworkUrl,country,dial,phone,leadId } } */
+  var P = {};
+  try {
+    var _ldEl = document.getElementById('lead-data');
+    var LD = _ldEl ? (JSON.parse(_ldEl.textContent || '{}') || {}) : {};
+    P = LD.trialPrefill || {};
+  } catch (e) { P = {}; }
+
+  var interval = 'monthly';
+
+  function urlParam(n) { try { return new URLSearchParams(location.search).get(n) || ''; } catch (e) { return ''; } }
+  function rand() { return Math.random().toString(36).slice(2, 8); }
+  function once(key) { try { if (sessionStorage.getItem(key)) return false; sessionStorage.setItem(key, '1'); return true; } catch (e) { return true; } }
+
+  /* ---------------- Interval toggle ---------------- */
+  var liveRegion = document.createElement('p');
+  liveRegion.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;';
+  liveRegion.setAttribute('aria-live', 'polite'); liveRegion.setAttribute('aria-atomic', 'true');
+  root.appendChild(liveRegion);
+  var maxSaveNum = Math.max.apply(null, $$('.crmt-plan__save').map(function (s) {
+    return parseInt((s.getAttribute('data-save') || '0').replace(/[^0-9]/g, ''), 10) || 0;
+  }).concat(0));
+  var maxSave = '$' + maxSaveNum.toLocaleString('en-US');
+  var saveSpan = $('.crmt-price-toggle__save');
+  if (saveSpan && maxSaveNum) saveSpan.textContent = 'save up to ' + maxSave;
+
+  function applyInterval(next, announce) {
+    interval = next;
+    root.classList.toggle('crmt-is-yearly', next === 'yearly');
+    $$('.crmt-price-toggle__btn').forEach(function (b) {
+      var on = b.getAttribute('data-interval') === next;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    $$('.crmt-plan').forEach(function (card) {
+      var amt = $('.crmt-plan__amount', card);
+      if (amt) amt.textContent = amt.getAttribute('data-amount-' + next);
+      var per = $('.crmt-plan__per', card);
+      if (per) per.textContent = next === 'yearly' ? 'a month, billed yearly' : 'a month';
+      var save = $('.crmt-plan__save', card);
+      if (save) {
+        if (next === 'yearly') { save.textContent = 'Save ' + save.getAttribute('data-save'); save.classList.add('is-on'); }
+        else { save.classList.remove('is-on'); }
+      }
+      var cta = $('.crmt-plan__cta', card);
+      if (cta && cta.getAttribute('data-label-' + next)) cta.textContent = cta.getAttribute('data-label-' + next);
+      $$('.crmt-pt-ctas > .crmt-js-checkout[data-label-' + next + ']', card).forEach(function (b) {
+        b.textContent = b.getAttribute('data-label-' + next);
+      });
+      var micro = $('.crmt-plan__micro', card);
+      if (micro && micro.getAttribute('data-micro-' + next)) micro.textContent = micro.getAttribute('data-micro-' + next);
+    });
+    $$('[data-iv-monthly]').forEach(function (el) {
+      var v = el.getAttribute('data-iv-' + next);
+      if (v != null) el.textContent = v;
+    });
+    if (announce) {
+      liveRegion.textContent = next === 'yearly'
+        ? 'Yearly pricing shown. Save up to ' + maxSave + ' a year.'
+        : 'Monthly pricing shown.';
+    }
+  }
+  $$('.crmt-price-toggle__btn').forEach(function (b) {
+    b.addEventListener('click', function () { applyInterval(b.getAttribute('data-interval'), true); });
+  });
+
+  /* ---------------- Modal scaffolding ---------------- */
+  function focusables(panel) {
+    return $$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', panel)
+      .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+  }
+  function buildModal(inner, onDismiss) {
+    var m = document.createElement('div');
+    m.className = 'crmt-co';
+    m.innerHTML = '<div class="crmt-co__bg" data-co-close></div><div class="crmt-co__panel" role="dialog" aria-modal="true">' +
+      '<button class="crmt-co__close" data-co-close type="button" aria-label="Close">&times;</button>' + inner + '</div>';
+    root.appendChild(m);
+    var panel = $('.crmt-co__panel', m);
+    var titleEl = $('.crmt-co__title', m);
+    if (titleEl) { var tid = 'crmt-co-t-' + rand(); titleEl.id = tid; panel.setAttribute('aria-labelledby', tid); }
+    var subEl = $('.crmt-co__sub', m);
+    if (subEl) { var sid = 'crmt-co-s-' + rand(); subEl.id = sid; panel.setAttribute('aria-describedby', sid); }
+
+    var prevFocus = document.activeElement;
+    // Force a reflow then add the class synchronously so the CSS transition still
+    // animates WITHOUT depending on requestAnimationFrame (rAF is throttled in
+    // background/inactive tabs, which would leave the modal stuck at display:none).
+    void m.offsetWidth;
+    m.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+
+    var closed = false;
+    function close(viaChoice) {
+      if (closed) return; closed = true;
+      m.classList.remove('is-open');
+      document.removeEventListener('keydown', onKey);
+      setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); if (!root.querySelector('.crmt-co.is-open')) document.body.style.overflow = ''; }, 220);
+      if (prevFocus && prevFocus.focus) { try { prevFocus.focus({ preventScroll: true }); } catch (e) {} }
+      if (!viaChoice && typeof onDismiss === 'function') onDismiss();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { close(false); return; }
+      if (e.key === 'Tab') {
+        var f = focusables(panel); if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    m.addEventListener('click', function (e) { if (e.target.closest('[data-co-close]')) close(false); });
+    m._close = function () { close(true); };
+    return m;
+  }
+
+  /* ---------------- Stripe redirect ---------------- */
+  function redirect(plan, email, ref, iv, useTrial) {
+    iv = iv || interval;
+    var url = (useTrial && STRIPE[plan] && STRIPE[plan].trial) ? STRIPE[plan].trial : STRIPE[plan][iv];
+    var join = url.indexOf('?') === -1 ? '?' : '&';
+    var q = 'client_reference_id=' + encodeURIComponent(ref);
+    if (email) q = 'prefilled_email=' + encodeURIComponent(email) + '&' + q;
+    ['utm_source', 'utm_medium', 'utm_campaign'].forEach(function (k) { var v = urlParam(k); if (v) q += '&' + k + '=' + encodeURIComponent(v); });
+    location.href = url + join + q;
+  }
+
+  /* ---------------- HubSpot capture (fire-and-forget, absolute) ---------------- */
+  function readUtm() { try { return GF.readUtmParams ? GF.readUtmParams() : {}; } catch (e) { return {}; } }
+  function postJSON(url, body) {
+    return fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive: true });
+  }
+  function submitStep1(d) {
+    return postJSON(HS_STEP1, {
+      firstName: d.firstname, lastName: d.lastname, email: d.email,
+      phone: d.fullPhone, country: d.country, upworkUrl: d.upworkUrl || '',
+      company: d.company || '', website: d.website || '',
+      pageUri: location.href, utm: readUtm()
+    });
+  }
+  function submitTier3(d) {
+    return postJSON(HS_TIER3, {
+      firstName: d.firstname, lastName: d.lastname, email: d.email, country: d.country,
+      company: d.company || '', website: d.website || '',
+      upworkAccounts: d.upworkAccounts, monthlyRevenue: d.monthlyRevenue,
+      pageUri: location.href, utm: readUtm()
+    });
+  }
+
+  function ping(ev, plan, ref) {
+    try { if (typeof posthog !== 'undefined' && posthog && posthog.capture) posthog.capture(ev, { plan: plan, interval: interval, ref: ref }); } catch (e) {}
+    try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: ev, plan: plan, interval: interval, ref: ref }); } catch (e) {}
+  }
+
+  /* ---------------- Capture modal ---------------- */
+  function openCapture(plan, forceTrial, forcePaid) {
+    var iv = forceTrial ? 'monthly' : interval;
+    var isTrial = !forcePaid && (plan === 'basic' && iv === 'monthly');
+    var title = forcePaid ? 'Get GigRadar CRM Basic' : (isTrial ? 'Start your 10-day free trial' : 'Get GigRadar CRM ' + PLAN_LABEL[plan]);
+    var btnLabel = isTrial ? 'Start free trial' : 'Continue to checkout';
+    var sub = isTrial
+      ? 'Two quick questions and you are in. Card required, free for 10 days, cancel anytime before day 10. Trial runs on Basic, upgrade to Pro anytime.'
+      : 'Two quick questions, then you pay on Stripe\'s secure page. We create your account and take you straight to your inbox.';
+    var pi = (PRICE_INFO[plan] || {})[iv] || {};
+    var priceStr = isTrial
+      ? '10-day free trial, then $199 a month, or $99 with your own Upwork key'
+      : (iv === 'yearly' ? (pi.year + ' (' + pi.per + '), you save ' + pi.save) : pi.month);
+    var orderHtml = '<div class="crmt-co__order"><span class="crmt-co__order-plan">GigRadar CRM ' + PLAN_LABEL[plan] + '</span>' +
+      '<span class="crmt-co__order-price">' + priceStr + '</span></div>';
+
+    var REQ = '<span class="crmt-co__req">*</span>';
+    function attr(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function selHtml(name, ph, arr) {
+      return '<select name="' + name + '" required><option value="" disabled selected>' + ph + '</option>' +
+        arr.map(function (o) { return '<option value="' + o + '">' + o + '</option>'; }).join('') + '</select>';
+    }
+
+    // Everything we already know about the lead -> HIDDEN + pre-filled. We never re-ask it.
+    var HIDDEN_KEYS = ['firstname', 'lastname', 'email', 'company', 'website', 'upworkUrl', 'country', 'phone'];
+    var hiddenHtml = HIDDEN_KEYS.map(function (k) { return '<input type="hidden" name="' + k + '" value="' + attr(P[k]) + '">'; }).join('') +
+      '<input type="hidden" name="dialCode" value="' + attr(P.dial) + '">';
+
+    // The ONLY two things we do not know -> the only visible fields.
+    var ACCOUNTS = ['1', '2', '3', '4', '5', '6–10', '11–20', '20+'];
+    var REVENUES = ['$0–$1,999', '$2,000–$4,999', '$5,000–$9,999', '$10,000–$24,999', '$25,000–$49,999', '$50,000+'];
+    var fAccounts = '<div class="crmt-co__field"><label>How many Upwork accounts do you plan to use with GigRadar?' + REQ + '</label>' +
+      selHtml('upworkAccounts', 'Select number of accounts', ACCOUNTS) + '<p class="crmt-co__err" data-co-aerr>Please choose how many accounts.</p></div>';
+    var fRevenue = '<div class="crmt-co__field"><label>Average monthly revenue for your company?' + REQ + '</label>' +
+      selHtml('monthlyRevenue', 'Select average monthly revenue', REVENUES) + '<p class="crmt-co__err" data-co-rerr>Please choose your average revenue.</p></div>';
+
+    var navHtml = '<div class="crmt-step__nav"><button type="submit" class="crmt-btn crmt-btn--primary crmt-btn--block crmt-step__go">' + btnLabel + '</button></div>';
+    var stepHtml = '<div class="crmt-step is-active" data-step="0">' + hiddenHtml + fAccounts + fRevenue + navHtml + '</div>';
+
+    var m = buildModal(
+      '<p class="crmt-co__eyebrow">' + PLAN_LABEL[plan] + (iv === 'yearly' ? ' · yearly' : ' · monthly') + '</p>' +
+      '<h2 class="crmt-co__title">' + title + '</h2>' +
+      '<p class="crmt-co__sub">' + sub + '</p>' +
+      orderHtml +
+      '<form data-co-form novalidate class="crmt-wiz">' + stepHtml +
+      '  <p class="crmt-co__fine">Your card is entered on Stripe\'s secure page. Cancel Anytime.</p>' +
+      '</form>'
+    );
+
+    var form = $('[data-co-form]', m);
+    ['input', 'change'].forEach(function (ev) {
+      form.addEventListener(ev, function () { $$('.crmt-co__err.show', form).forEach(function (el) { el.classList.remove('show'); }); }, true);
+    });
+
+    function collect() { var d = {}; $$('input, select, textarea', form).forEach(function (i) { if (i.name) d[i.name] = (i.value || '').trim(); }); return d; }
+    function fail(key, focusName) {
+      var er = $('[data-co-' + key + ']', form); if (er) er.classList.add('show');
+      var fi = focusName && form.querySelector('[name="' + focusName + '"]'); if (fi && fi.focus) { try { fi.focus(); } catch (e2) {} }
+    }
+    function validate() {
+      var d = collect();
+      if (!d.upworkAccounts) { fail('aerr', 'upworkAccounts'); return false; }
+      if (!d.monthlyRevenue) { fail('rerr', 'monthlyRevenue'); return false; }
+      return true;
+    }
+    setTimeout(function () { try { var f = form.querySelector('select'); f && f.focus({ preventScroll: true }); } catch (e) {} }, 130);
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!validate()) return;
+      var data = collect();
+      data.fullPhone = data.dialCode ? ('+' + data.dialCode + (data.phone || '')) : (data.phone || '');
+      var go = $('.crmt-step__go', form); if (go) { go.disabled = true; go.textContent = 'One moment…'; }
+      var ref = 'crmland_' + plan + '_' + iv + '_' + rand(), done = false;
+      var email = data.email || P.email || '';
+
+      ping('crm_checkout_started', plan, ref);
+
+      // Stitch this anonymous session to the KNOWN lead the moment they start the trial/checkout.
+      try {
+        if (typeof posthog !== 'undefined' && posthog && posthog.identify && P.email) {
+          posthog.identify(P.email, {
+            email: P.email,
+            name: ((P.firstname || '') + ' ' + (P.lastname || '')).trim(),
+            company: P.company, website: P.website, upwork_url: P.upworkUrl,
+            country: P.country, phone: (P.dial && P.phone ? ('+' + P.dial + P.phone) : P.phone),
+            lead_id: P.leadId,
+            upwork_accounts: data.upworkAccounts,
+            company_monthly_revenue: data.monthlyRevenue
+          });
+        }
+      } catch (e2) {}
+
+      if (window.GR && window.GR.track) { try { window.GR.track(email, { crm_plan: plan, crm_interval: iv, crm_checkout_ref: ref, firstname: data.firstname, lastname: data.lastname, phone: data.fullPhone, upworkUrl: data.upworkUrl, upwork_accounts: data.upworkAccounts, company_monthly_revenue: data.monthlyRevenue }); } catch (e3) {} }
+
+      // NEVER disqualify: every lead, any country/tier, reaches the real Stripe checkout.
+      function proceed() { if (done) return; done = true; redirect(plan, email, ref, iv, isTrial); }
+      var jobs = [];
+      if (isTrial) { jobs.push(submitStep1(data)); jobs.push(submitTier3(data)); }
+      if (jobs.length) {
+        Promise.all(jobs.map(function (p) { return p.then(function (r) { return r; }, function () { ping('crm_checkout_capture_failed', plan); }); })).then(proceed, proceed);
+      } else { proceed(); }
+      setTimeout(proceed, 1600);
+    });
+  }
+
+  /* ---------------- Pro upsell (once per session, Basic PAID yearly only) ---------------- */
+  function openUpsell(onContinue) {
+    var delta = interval === 'yearly' ? '$960 more a year' : '$100 more a month';
+    var m = buildModal(
+      '<p class="crmt-co__eyebrow">Before you start</p>' +
+      '<h2 class="crmt-co__title">Most agencies pick Pro.</h2>' +
+      '<p class="crmt-co__sub">Basic answers over the API. Pro adds the Business Manager, so a new reply lands on your screen in 1 to 3 seconds instead of up to 5 minutes, you book the call inside the chat, and you send files without leaving. 10 accounts, not 3. For ' + delta + ', you answer before the lead cools.</p>' +
+      '<div class="crmt-co__altcta">' +
+      '  <button type="button" class="crmt-btn crmt-btn--primary crmt-btn--block" data-co-pro>Switch to Pro</button>' +
+      '  <button type="button" class="crmt-btn crmt-btn--ghost crmt-btn--block" data-co-keep>Continue with Basic</button>' +
+      '</div>',
+      onContinue
+    );
+    $('[data-co-pro]', m).addEventListener('click', function () { m._close(); openCapture('pro'); });
+    $('[data-co-keep]', m).addEventListener('click', function () { m._close(); onContinue(); });
+  }
+
+  /* ---------------- Buy + trial clicks (scoped to #trial) ---------------- */
+  root.addEventListener('click', function (e) {
+    var cta = e.target.closest('.crmt-js-checkout');
+    if (!cta || !root.contains(cta)) return;
+    e.preventDefault();
+    var plan = cta.getAttribute('data-plan');
+    var forcePaid = cta.getAttribute('data-force-paid') === 'true';
+    if (!forcePaid && plan === 'basic' && interval === 'yearly' && once('gr_pro_upsell')) {
+      openUpsell(function () { openCapture('basic'); });
+      return;
+    }
+    openCapture(plan, false, forcePaid);
+  });
+  root.addEventListener('click', function (e) {
+    var t = e.target.closest('.crmt-js-trial');
+    if (!t || !root.contains(t)) return;
+    e.preventDefault();
+    openCapture('basic', true);
+  });
+
+  /* ---------------- "?" contextual popovers (native Popover API) ---------------- */
+  (function () {
+    if (!HTMLElement.prototype.showPopover) return;
+    var hoverable = false; try { hoverable = matchMedia('(hover:hover)').matches; } catch (e) {}
+    var lastTrigger = null, hideTimer = null;
+    var PANELS = ['crmt-key-pop', 'crmt-ab-pop'];
+    function rough(panel, btn) {
+      var r = btn.getBoundingClientRect();
+      panel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 346)) + 'px';
+      panel.style.top = (r.bottom + 8) + 'px';
+    }
+    function refine(panel, btn) {
+      var r = btn.getBoundingClientRect(), pw = panel.offsetWidth, ph = panel.offsetHeight;
+      var left = Math.min(Math.max(8, r.left), window.innerWidth - pw - 8);
+      var top = r.bottom + 8;
+      if (top + ph > window.innerHeight - 8 && r.top - ph - 8 > 8) top = r.top - ph - 8;
+      panel.style.left = left + 'px'; panel.style.top = top + 'px';
+    }
+    root.addEventListener('pointerdown', function (e) {
+      var btn = e.target.closest('.crmt-key-info'); if (btn) lastTrigger = btn;
+    });
+    PANELS.forEach(function (id) {
+      var panel = document.getElementById(id); if (!panel) return;
+      panel.addEventListener('beforetoggle', function (e) { if (e.newState === 'open' && lastTrigger) rough(panel, lastTrigger); });
+      panel.addEventListener('toggle', function (e) { if (e.newState === 'open' && lastTrigger) refine(panel, lastTrigger); });
+      if (hoverable) {
+        panel.addEventListener('mouseenter', function () { clearTimeout(hideTimer); });
+        panel.addEventListener('mouseleave', function () { try { panel.hidePopover(); } catch (er) {} });
+      }
+    });
+    if (hoverable) {
+      root.addEventListener('mouseover', function (e) {
+        var btn = e.target.closest('.crmt-key-info'); if (!btn) return;
+        clearTimeout(hideTimer);
+        var panel = document.getElementById(btn.getAttribute('popovertarget') || '');
+        if (panel && !panel.matches(':popover-open')) { lastTrigger = btn; try { panel.showPopover(); } catch (er) {} }
+      });
+      root.addEventListener('mouseout', function (e) {
+        var btn = e.target.closest('.crmt-key-info'); if (!btn) return;
+        var panel = document.getElementById(btn.getAttribute('popovertarget') || ''); if (!panel) return;
+        hideTimer = setTimeout(function () { try { panel.hidePopover(); } catch (er) {} }, 200);
+      });
+    }
+    window.addEventListener('scroll', function (e) {
+      PANELS.forEach(function (id) {
+        var p = document.getElementById(id);
+        if (!p || !p.matches(':popover-open')) return;
+        if (e.target && (e.target === p || (p.contains && e.target.nodeType === 1 && p.contains(e.target)))) return;
+        try { p.hidePopover(); } catch (er) {}
+      });
+    }, true);
+  })();
+
+  /* ---------------- Collapsible comparison table ---------------- */
+  (function () {
+    var table = $('.crmt-price-table');
+    var wrap = $('.crmt-pt-wrap');
+    var btn = $('[data-pt-toggle]');
+    if (!table || !wrap || !btn) return;
+    table.setAttribute('data-collapsed', 'true');
+    wrap.setAttribute('data-fade', 'true');
+    btn.addEventListener('click', function () {
+      var collapsed = table.getAttribute('data-collapsed') === 'true';
+      var nowOpen = collapsed;
+      table.setAttribute('data-collapsed', nowOpen ? 'false' : 'true');
+      wrap.setAttribute('data-fade', nowOpen ? 'false' : 'true');
+      btn.setAttribute('aria-expanded', String(nowOpen));
+      var label = btn.querySelector('.crmt-pt-toggle__label');
+      if (label) label.textContent = nowOpen ? 'Show less' : 'Show all features';
+    });
+  })();
+
+  applyInterval('monthly');
+})();
+</script>
