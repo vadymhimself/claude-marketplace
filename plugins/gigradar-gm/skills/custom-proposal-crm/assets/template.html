@@ -717,6 +717,61 @@ footer .gr-foot{height:26px;width:auto}
  </div>
 </section>
 
+<!-- CRM "biggest weakness" hard-sell — right after the rank block (custom-proposal-crm) -->
+<!--INCLUDE:partials/crm-weakness.partial.html-->
+
+<!-- SECTION 7 — INTERACTIVE PROPOSAL TOOL -->
+<section class="ptool" id="proposal-tool">
+ <div class="wrap">
+ <div class="sec-head fade">
+ <div class="step"><span class="num">7</span> The message that actually gets the reply</div>
+      <h2 id="ptHeadline"></h2>
+      <p id="ptIntro"></p>
+    </div>
+
+    <div class="pt-explain fade" id="ptExplain"></div>
+
+    <div class="pt-tool fade" id="ptTool">
+      <div class="pt-grid">
+        <!-- LEFT: GigRadar proposal -->
+        <div class="pt-col pt-left">
+          <div class="pt-col-head">
+            <div class="pt-col-tag pt-tag-gr"><svg class="pt-gr-ico"><use href="#gr"></use></svg> Your GigRadar proposal</div>
+            <div class="pt-switch" id="ptStyleSwitch" role="tablist" aria-label="Cover-letter tone"></div>
+          </div>
+          <div class="pt-letter" id="ptLetter"></div>
+        </div>
+
+        <!-- MID connector -->
+        <div class="pt-mid"><div class="pt-arrow">→</div><div class="pt-mid-say">written<br>for</div></div>
+
+        <!-- RIGHT: Upwork job -->
+        <div class="pt-col pt-right">
+          <div class="pt-col-head">
+            <div class="pt-col-tag pt-tag-uw"><svg class="uw-glyph"><use href="#uw"></use></svg> The Upwork job</div>
+            <div class="pt-switch pt-job-switch" id="ptJobSwitch" role="tablist" aria-label="Choose a job"></div>
+          </div>
+          <div class="pt-job" id="ptJob"></div>
+        </div>
+      </div>
+      <div class="pt-breakdown-row">
+        <div class="pt-bd-eyebrow">Why this letter lands, and where it comes from</div>
+        <div class="pt-breakdown">
+          <div class="pt-bd-block">
+            <div class="pt-bd-h"><span class="pt-bd-ic pt-ic-check">✓</span> Why this converts</div>
+            <ul class="pt-bd-list" id="ptWhy"></ul>
+          </div>
+          <div class="pt-bd-block">
+            <div class="pt-bd-h"><span class="pt-bd-ic pt-ic-kb">◆</span> Sourced from GigRadar's knowledge base</div>
+            <ul class="pt-bd-list pt-kb" id="ptKb"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="pt-foot" id="ptFoot"></div>
+    </div>
+  </div>
+</section>
+
 <!-- SECTION 2 — OPPORTUNITIES -->
 <section class="opps" id="opps">
  <div class="wrap">
@@ -915,62 +970,7 @@ footer .gr-foot{height:26px;width:auto}
  </div>
 </section>
 
-<!-- SECTION 7 — INTERACTIVE PROPOSAL TOOL -->
-<section class="ptool" id="proposal-tool">
- <div class="wrap">
- <div class="sec-head fade">
- <div class="step"><span class="num">7</span> The message that actually gets the reply</div>
-      <h2 id="ptHeadline"></h2>
-      <p id="ptIntro"></p>
-    </div>
-
-    <div class="pt-explain fade" id="ptExplain"></div>
-
-    <div class="pt-tool fade" id="ptTool">
-      <div class="pt-grid">
-        <!-- LEFT: GigRadar proposal -->
-        <div class="pt-col pt-left">
-          <div class="pt-col-head">
-            <div class="pt-col-tag pt-tag-gr"><svg class="pt-gr-ico"><use href="#gr"></use></svg> Your GigRadar proposal</div>
-            <div class="pt-switch" id="ptStyleSwitch" role="tablist" aria-label="Cover-letter tone"></div>
-          </div>
-          <div class="pt-letter" id="ptLetter"></div>
-        </div>
-
-        <!-- MID connector -->
-        <div class="pt-mid"><div class="pt-arrow">→</div><div class="pt-mid-say">written<br>for</div></div>
-
-        <!-- RIGHT: Upwork job -->
-        <div class="pt-col pt-right">
-          <div class="pt-col-head">
-            <div class="pt-col-tag pt-tag-uw"><svg class="uw-glyph"><use href="#uw"></use></svg> The Upwork job</div>
-            <div class="pt-switch pt-job-switch" id="ptJobSwitch" role="tablist" aria-label="Choose a job"></div>
-          </div>
-          <div class="pt-job" id="ptJob"></div>
-        </div>
-      </div>
-      <div class="pt-breakdown-row">
-        <div class="pt-bd-eyebrow">Why this letter lands, and where it comes from</div>
-        <div class="pt-breakdown">
-          <div class="pt-bd-block">
-            <div class="pt-bd-h"><span class="pt-bd-ic pt-ic-check">✓</span> Why this converts</div>
-            <ul class="pt-bd-list" id="ptWhy"></ul>
-          </div>
-          <div class="pt-bd-block">
-            <div class="pt-bd-h"><span class="pt-bd-ic pt-ic-kb">◆</span> Sourced from GigRadar's knowledge base</div>
-            <ul class="pt-bd-list pt-kb" id="ptKb"></ul>
-          </div>
-        </div>
-      </div>
-      <div class="pt-foot" id="ptFoot"></div>
-    </div>
-  </div>
-</section>
-
-<!-- SECTION 8 — CRM "biggest weakness" hard-sell (custom-proposal-crm) -->
-<!--INCLUDE:partials/crm-weakness.partial.html-->
-
-<!-- SECTION 9 — CRM trial funnel (stolen from gigradar.io/crm; #trial scroll target) -->
+<!-- CRM trial funnel (stolen from gigradar.io/crm; #trial scroll target) -->
 <!--INCLUDE:partials/crm-trial-funnel.partial.html-->
 
 <!-- FINAL CTA -->
