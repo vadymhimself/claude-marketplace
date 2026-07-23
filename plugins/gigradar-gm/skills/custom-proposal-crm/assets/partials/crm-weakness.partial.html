@@ -5,17 +5,20 @@
   All classes prefixed crmw-. No host-page collisions. Drop in as-is.
 
   INTEGRATION NOTES FOR LEAD:
-  - Section id="crm"  (anchor target: #crm). Nav/CTA links can point here.
-  - Poster image: the hero <video> uses poster="https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero-poster.jpg" (relative
-    to _partials/). This is RAW HTML, so the build won't auto-inline it. Please
-    base64-inline crm-hero-poster.jpg into the poster="" attr at integration
-    (or ensure the file ships next to the final page). File already exists in
-    _partials/crm-hero-poster.jpg.
-  - Hero video S3: .../techinfini/crm-hero.mp4  (click-to-play, preload=none).
-  - All 7 asset URLs verified 200 OK on 2026-07-23.
+  - Section id="crm" (anchor target: #crm). Nav/CTA links can point here.
+  - HERO VIDEO is now FULL-WIDTH (16:9), centered, click-to-play:
+      video src: https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero.mp4
+      poster:    https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero-poster.jpg
+    Both are absolute S3 URLs (no local file / no @file inline needed anymore).
+  - FEATURE POPOVERS play the matching CRM animation (muted, looped, lazy: the
+    video src is set + played on open, paused on close). Account security has no
+    animation, so it keeps a static screenshot. Auto Bidding + Follow-ups are new.
+  - The FOLLOW-UPS feature popover holds the two YouTube embeds (Manual +
+    Agentic). The standalone "Two ways to schedule follow-ups" section was removed.
+  - All asset URLs verified 200 OK on 2026-07-23.
   - Sits mid-page between a dark and a light section. Its own background is a
     dark navy->slate gradient (matches .gap), so pair it after a light section.
-  - Trial CTA -> https://gigradar.io/crm  (data-trial hook kept for lead's JS).
+  - Trial CTA -> https://gigradar.io/crm (data-trial hook kept for lead's JS).
   - No external JS/CSS libs. YouTube uses youtube-nocookie.com.
   ============================================================================
 -->
@@ -93,28 +96,20 @@
       <p class="crmw-caption">Bars are scaled to time (15 min vs ~4 hrs), not survey counts. Your ~4 hr figure is our estimate from your public Upwork activity, treat it as directional, not exact.</p>
     </div>
 
-    <!-- 3. HERO VIDEO + CRM ANIMATION -->
+    <!-- 3. HERO VIDEO (FULL WIDTH) -->
     <div class="crmw-hero crmw-fade">
       <div class="crmw-hero-copy">
         <div class="crmw-eyebrow crmw-eyebrow-light">Close the gap</div>
         <h3 class="crmw-h3">This is what closing the gap looks like.</h3>
         <p class="crmw-hero-lede">GigRadar CRM puts every Upwork lead in one inbox and drafts the first reply in your voice, so you answer in under 5 minutes instead of 4 hours.</p>
       </div>
-      <div class="crmw-hero-videos">
-        <figure class="crmw-vfig">
-          <video class="crmw-video" controls preload="none" playsinline poster="https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero-poster.jpg">
-            <source src="https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero.mp4" type="video/mp4">
-            Your browser does not support the video tag.
-          </video>
-          <figcaption class="crmw-vcap">Watch: the CRM walkthrough for your agency</figcaption>
-        </figure>
-        <figure class="crmw-vfig">
-          <video class="crmw-video crmw-video-anim" autoplay muted loop playsinline preload="metadata">
-            <source src="https://gigradar.io/crm/assets/anim/3/crm-onboarding-3.mp4" type="video/mp4">
-          </video>
-          <figcaption class="crmw-vcap">Leads land, get sorted, and get answered, automatically</figcaption>
-        </figure>
-      </div>
+      <figure class="crmw-vfig">
+        <video class="crmw-video" controls preload="none" playsinline poster="https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero-poster.jpg">
+          <source src="https://gigradar-gm-custom-proposals.s3.us-west-2.amazonaws.com/shared/crm-hero.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <figcaption class="crmw-vcap">Watch: the CRM walkthrough for your agency</figcaption>
+      </figure>
     </div>
 
     <!-- 4. CRM FEATURE LIST WITH POPOVERS -->
@@ -134,7 +129,8 @@
             <span class="crmw-fcue" aria-hidden="true">Details</span>
           </button>
           <div class="crmw-pop" role="dialog" aria-label="Unified inbox">
-            <img class="crmw-pop-img" loading="lazy" alt="Unified Upwork inbox" src="https://gigradar.io/crm/assets/screenshots/inbox-hero.avif">
+            <h4 class="crmw-pop-title">Unified inbox</h4>
+            <video class="crmw-pop-vid" muted loop playsinline preload="none" data-src="https://gigradar.io/crm/assets/anim/3/crm-onboarding-3.mp4"></video>
             <p class="crmw-pop-txt">Every Upwork chat, across every connected account, lands in one shared inbox. No more logging into five profiles to notice a new message.</p>
           </div>
         </li>
@@ -148,7 +144,8 @@
             <span class="crmw-fcue" aria-hidden="true">Details</span>
           </button>
           <div class="crmw-pop" role="dialog" aria-label="Laziza AI first-reply">
-            <img class="crmw-pop-img" loading="lazy" alt="Laziza AI drafting a first reply" src="https://gigradar.io/crm/assets/screenshots/inbox-3.avif">
+            <h4 class="crmw-pop-title">Laziza AI first-reply</h4>
+            <video class="crmw-pop-vid" muted loop playsinline preload="none" data-src="https://gigradar.io/crm/assets/anim/8/crm-onboarding-8.mp4"></video>
             <p class="crmw-pop-txt">Laziza drafts the first reply in your agency's voice the moment a lead comes in, so the client hears back in minutes even when your team is asleep.</p>
           </div>
         </li>
@@ -162,8 +159,24 @@
             <span class="crmw-fcue" aria-hidden="true">Details</span>
           </button>
           <div class="crmw-pop" role="dialog" aria-label="AI call scheduler">
-            <img class="crmw-pop-img" loading="lazy" alt="AI booking a call inside the chat" src="https://gigradar.io/crm/assets/screenshots/inbox-4.avif">
+            <h4 class="crmw-pop-title">AI call scheduler</h4>
+            <video class="crmw-pop-vid" muted loop playsinline preload="none" data-src="https://gigradar.io/crm/assets/anim/7/crm-onboarding-7.mp4"></video>
             <p class="crmw-pop-txt">The scheduler proposes times and books the discovery call right inside the Upwork chat, turning a fast reply into a locked meeting before the lead cools off.</p>
+          </div>
+        </li>
+
+        <li class="crmw-frow">
+          <button class="crmw-fchip" type="button" aria-expanded="false" aria-haspopup="dialog">
+            <span class="crmw-fic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+            </span>
+            <span class="crmw-ftxt">Auto Bidding</span>
+            <span class="crmw-fcue" aria-hidden="true">Details</span>
+          </button>
+          <div class="crmw-pop" role="dialog" aria-label="Auto Bidding">
+            <h4 class="crmw-pop-title">Auto Bidding</h4>
+            <video class="crmw-pop-vid" muted loop playsinline preload="none" data-src="https://gigradar.io/crm/assets/anim/1/crm-illustration-card.mp4"></video>
+            <p class="crmw-pop-txt">GigRadar applies to matching Upwork jobs within 5 minutes of them being posted, so you land among the first applicants, when reply rates are highest.</p>
           </div>
         </li>
 
@@ -176,8 +189,37 @@
             <span class="crmw-fcue" aria-hidden="true">Details</span>
           </button>
           <div class="crmw-pop" role="dialog" aria-label="10-stage deal pipeline">
-            <img class="crmw-pop-img" loading="lazy" alt="Ten-stage deal pipeline board" src="https://gigradar.io/crm/assets/screenshots/features-frame-1.avif">
+            <h4 class="crmw-pop-title">10-stage deal pipeline</h4>
+            <video class="crmw-pop-vid" muted loop playsinline preload="none" data-src="https://gigradar.io/crm/assets/anim/4/crm-onboarding-4.mp4"></video>
             <p class="crmw-pop-txt">Every lead moves through a clear 10-stage pipeline, from first message to signed contract, so nothing stalls in someone's DMs and no follow-up gets forgotten.</p>
+          </div>
+        </li>
+
+        <li class="crmw-frow crmw-frow-follow">
+          <button class="crmw-fchip" type="button" aria-expanded="false" aria-haspopup="dialog">
+            <span class="crmw-fic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5"/><path d="M5 3 2.5 5.5"/><path d="M19 3l2.5 2.5"/></svg>
+            </span>
+            <span class="crmw-ftxt">Follow-ups</span>
+            <span class="crmw-fcue" aria-hidden="true">Details</span>
+          </button>
+          <div class="crmw-pop crmw-pop-follow" role="dialog" aria-label="Follow-ups">
+            <h4 class="crmw-pop-title">Follow-ups</h4>
+            <p class="crmw-pop-txt crmw-pop-txt-top">Two ways to never let a warm lead go cold. Schedule follow-ups yourself, or let GigRadar's AI time and send them for you.</p>
+            <div class="crmw-pop-yt">
+              <figure class="crmw-yt-item">
+                <div class="crmw-yt-frame">
+                  <iframe data-src="https://www.youtube-nocookie.com/embed/46IUiawf91U" title="Manual follow-ups in GigRadar CRM" loading="lazy" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                </div>
+                <figcaption class="crmw-yt-cap">Manual follow-ups</figcaption>
+              </figure>
+              <figure class="crmw-yt-item">
+                <div class="crmw-yt-frame">
+                  <iframe data-src="https://www.youtube-nocookie.com/embed/wiEFdjL72Ew" title="Agentic AI follow-ups in GigRadar CRM" loading="lazy" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                </div>
+                <figcaption class="crmw-yt-cap">Agentic follow-ups (AI schedules them)</figcaption>
+              </figure>
+            </div>
           </div>
         </li>
 
@@ -190,34 +232,13 @@
             <span class="crmw-fcue" aria-hidden="true">Details</span>
           </button>
           <div class="crmw-pop" role="dialog" aria-label="Account security">
+            <h4 class="crmw-pop-title">Account security</h4>
             <img class="crmw-pop-img" loading="lazy" alt="Secure account access without shared logins" src="https://gigradar.io/crm/assets/screenshots/features-frame-2.avif">
             <p class="crmw-pop-txt">Your team works every Upwork account without sharing raw logins or passwords. Access is granted and revoked per person, so scaling the team never means handing out credentials.</p>
           </div>
         </li>
 
       </ul>
-    </div>
-
-    <!-- 5. TWO WAYS TO SCHEDULE FOLLOW-UPS -->
-    <div class="crmw-yt crmw-fade">
-      <div class="crmw-yt-head">
-        <h3 class="crmw-h3">Two ways to schedule follow-ups</h3>
-        <p class="crmw-yt-sub">Keep them manual, or let the AI schedule and send them for you.</p>
-      </div>
-      <div class="crmw-yt-grid">
-        <figure class="crmw-yt-item">
-          <div class="crmw-yt-frame">
-            <iframe src="https://www.youtube-nocookie.com/embed/46IUiawf91U" title="Manual follow-ups in GigRadar CRM" loading="lazy" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-          </div>
-          <figcaption class="crmw-yt-cap">Manual follow-ups</figcaption>
-        </figure>
-        <figure class="crmw-yt-item">
-          <div class="crmw-yt-frame">
-            <iframe src="https://www.youtube-nocookie.com/embed/wiEFdjL72Ew" title="Agentic AI follow-ups in GigRadar CRM" loading="lazy" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-          </div>
-          <figcaption class="crmw-yt-cap">Agentic follow-ups (AI schedules them for you)</figcaption>
-        </figure>
-      </div>
     </div>
 
     <!-- CTA -->
@@ -230,7 +251,7 @@
   </div>
 
   <style>
-  /* ===== CRM WEAKNESS PARTIAL — scoped tokens + styles (all crmw-) ===== */
+  /* ===== CRM WEAKNESS PARTIAL, scoped tokens + styles (all crmw-) ===== */
   .crmw{
     --crmw-navy:#0a0f1f; --crmw-navy2:#0e1730;
     --crmw-blue:#216BEF; --crmw-blue-deep:#1852d3; --crmw-blue-soft:#5dadfd;
@@ -241,10 +262,12 @@
     --crmw-radius:16px;
     font-family:'Inter',system-ui,-apple-system,'SF Pro Display',BlinkMacSystemFont,sans-serif;
     background:linear-gradient(180deg,var(--crmw-navy),var(--crmw-navy2));
-    color:var(--crmw-txt); padding:92px 0; position:relative; overflow:hidden;
+    color:var(--crmw-txt); padding:92px 0; position:relative; overflow:visible;
     line-height:1.6; -webkit-font-smoothing:antialiased;
   }
   .crmw *{box-sizing:border-box}
+  /* clip only decorative overflow horizontally; NEVER clip popovers (they need to escape the box) */
+  .crmw-wrap{overflow:visible}
   .crmw-wrap{max-width:1140px;margin:0 auto;padding:0 24px}
   .crmw-h2{font-size:clamp(28px,3.8vw,42px);font-weight:800;color:#fff;margin:12px 0 0;letter-spacing:-.02em;line-height:1.15}
   .crmw-h3{font-size:clamp(20px,2.4vw,26px);font-weight:800;color:#fff;margin:0;letter-spacing:-.01em}
@@ -295,16 +318,14 @@
   .crmw-cstat-k{font-size:12.5px;color:var(--crmw-mut2);margin-top:8px}
   .crmw-caption{font-size:12px;color:var(--crmw-mut2);margin:22px 0 0;line-height:1.5}
 
-  /* 3. HERO VIDEOS */
+  /* 3. HERO VIDEO (FULL WIDTH) */
   .crmw-hero{margin-top:52px}
   .crmw-hero-copy{max-width:680px;margin-bottom:26px}
   .crmw-hero-copy .crmw-h3{margin-top:10px}
   .crmw-hero-lede{font-size:16px;color:var(--crmw-mut);margin:14px 0 0}
-  .crmw-hero-videos{display:grid;grid-template-columns:1.15fr .85fr;gap:22px;align-items:start}
   .crmw-vfig{margin:0}
   .crmw-video{width:100%;aspect-ratio:16/9;display:block;border-radius:var(--crmw-radius);background:#05080f;border:1px solid var(--crmw-line);box-shadow:0 24px 64px -20px rgba(33,107,239,.26);object-fit:cover}
-  .crmw-video-anim{aspect-ratio:1/1}
-  .crmw-vcap{font-size:13px;color:var(--crmw-mut2);margin-top:12px}
+  .crmw-vcap{font-size:13px;color:var(--crmw-mut2);margin-top:12px;text-align:center}
 
   /* 4. FEATURES + POPOVERS */
   .crmw-feats{margin-top:56px}
@@ -319,23 +340,29 @@
   .crmw-fic{display:inline-flex;color:var(--crmw-blue-soft)}
   .crmw-fcue{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--crmw-mut2);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:6px}
   .crmw-fchip[aria-expanded="true"] .crmw-fcue{color:var(--crmw-blue-soft);background:rgba(33,107,239,.2)}
-  .crmw-pop{position:absolute;top:calc(100% + 12px);left:0;width:340px;max-width:min(340px,86vw);background:#0d1526;border:1px solid rgba(33,107,239,.4);border-radius:16px;padding:14px;box-shadow:0 24px 64px -20px rgba(0,0,0,.7);opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease,visibility .18s;z-index:30}
+  /* popover: wide enough for a clean 16:9 video. High z-index + section overflow:visible = never clipped. */
+  .crmw-pop{position:absolute;top:calc(100% + 12px);left:0;width:400px;max-width:min(400px,92vw);background:#0d1526;border:1px solid rgba(33,107,239,.4);border-radius:16px;padding:16px;box-shadow:0 24px 64px -20px rgba(0,0,0,.7);opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease,visibility .18s;z-index:80}
   .crmw-frow.crmw-open .crmw-pop,.crmw-frow:hover .crmw-pop{opacity:1;visibility:visible;transform:none}
   .crmw-pop::before{content:"";position:absolute;top:-7px;left:26px;width:12px;height:12px;background:#0d1526;border-left:1px solid rgba(33,107,239,.4);border-top:1px solid rgba(33,107,239,.4);transform:rotate(45deg)}
-  .crmw-pop-img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:10px;display:block;background:#05080f;border:1px solid var(--crmw-line)}
+  /* title -> media -> copy */
+  .crmw-pop-title{font-size:15px;font-weight:800;color:#fff;margin:0 2px 11px;letter-spacing:-.01em;line-height:1.25}
+  .crmw-pop-vid,.crmw-pop-img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;display:block;background:#05080f;border:1px solid var(--crmw-line)}
   .crmw-pop-txt{font-size:13.5px;color:var(--crmw-mut);margin:12px 2px 2px;line-height:1.5}
+  .crmw-pop-txt-top{margin:0 2px 12px}
   .crmw-pop.crmw-pop-right{left:auto;right:0}
   .crmw-pop.crmw-pop-right::before{left:auto;right:26px}
+  /* flip UP when a bottom-row chip would push the popover past the viewport bottom */
+  .crmw-pop.crmw-pop-up{top:auto;bottom:calc(100% + 12px);transform:translateY(6px)}
+  .crmw-frow.crmw-open .crmw-pop.crmw-pop-up,.crmw-frow:hover .crmw-pop.crmw-pop-up{transform:none}
+  .crmw-pop.crmw-pop-up::before{top:auto;bottom:-7px;border-left:none;border-top:none;border-right:1px solid rgba(33,107,239,.4);border-bottom:1px solid rgba(33,107,239,.4)}
 
-  /* 5. YOUTUBE */
-  .crmw-yt{margin-top:56px}
-  .crmw-yt-head{margin-bottom:22px}
-  .crmw-yt-sub{font-size:14.5px;color:var(--crmw-mut);margin:10px 0 0}
-  .crmw-yt-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  /* Follow-ups popover: extra-wide, holds two YouTube embeds */
+  .crmw-pop.crmw-pop-follow{width:600px;max-width:min(600px,92vw)}
+  .crmw-pop-yt{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .crmw-yt-item{margin:0}
-  .crmw-yt-frame{position:relative;aspect-ratio:16/9;border-radius:var(--crmw-radius);overflow:hidden;border:1px solid var(--crmw-line);background:#05080f;box-shadow:0 24px 64px -20px rgba(33,107,239,.26)}
+  .crmw-yt-frame{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--crmw-line);background:#05080f}
   .crmw-yt-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-  .crmw-yt-cap{font-size:14px;font-weight:600;color:#c7d3e6;margin-top:12px}
+  .crmw-yt-cap{font-size:13px;font-weight:600;color:#c7d3e6;margin-top:10px;text-align:center}
 
   /* CTA */
   .crmw-cta{margin-top:52px;display:flex;flex-wrap:wrap;align-items:center;gap:14px}
@@ -347,22 +374,18 @@
   .crmw-cta-sub{flex-basis:100%;font-size:13px;color:var(--crmw-mut2);margin:4px 0 0}
 
   /* RESPONSIVE */
-  @media (max-width:900px){
-    .crmw-hero-videos{grid-template-columns:1fr}
-    .crmw-video-anim{aspect-ratio:16/9}
-  }
   @media (max-width:760px){
     .crmw{padding:64px 0}
     .crmw-hook{flex-direction:column;gap:14px;padding:22px}
     .crmw-bar-row{grid-template-columns:1fr;gap:8px}
     .crmw-tag-green{position:static;transform:none;display:inline-block;margin-left:0}
     .crmw-chart-stats{grid-template-columns:1fr;gap:22px}
-    .crmw-yt-grid{grid-template-columns:1fr}
     .crmw-flist{flex-direction:column}
     .crmw-frow{width:100%}
     .crmw-fchip{width:100%}
-    .crmw-pop{width:100%;max-width:100%;left:0}
+    .crmw-pop,.crmw-pop.crmw-pop-follow{width:100%;max-width:100%;left:0}
     .crmw-pop.crmw-pop-right{right:auto}
+    .crmw-pop-yt{grid-template-columns:1fr}
   }
   </style>
 
@@ -384,26 +407,58 @@
       faders.forEach(function(f){ f.classList.add('crmw-in'); });
     }
 
-    /* --- feature popovers: hover (CSS) + click/keyboard toggle (JS) --- */
+    /* --- feature popovers: hover (CSS) + click/keyboard toggle (JS),
+           lazy-load + play matching media on open, pause on close --- */
     var rows = Array.prototype.slice.call(root.querySelectorAll('.crmw-frow'));
+
+    function playRow(row){
+      var v = row.querySelector('.crmw-pop-vid');
+      if(v){
+        if(!v.getAttribute('src') && v.dataset.src){ v.setAttribute('src', v.dataset.src); }
+        var p = v.play(); if(p && p.catch){ p.catch(function(){}); }
+      }
+      /* Follow-ups: lazy-set the YouTube iframes on first open */
+      var frames = row.querySelectorAll('iframe[data-src]');
+      frames.forEach(function(f){
+        if(!f.getAttribute('src')){ f.setAttribute('src', f.dataset.src); }
+      });
+    }
+    function pauseRow(row){
+      var v = row.querySelector('.crmw-pop-vid');
+      if(v){ try{ v.pause(); }catch(e){} }
+      /* stop any YouTube playback by unloading the iframe (re-set on next open) */
+      var frames = row.querySelectorAll('iframe[data-src]');
+      frames.forEach(function(f){ f.setAttribute('src',''); });
+    }
 
     function closeAll(except){
       rows.forEach(function(r){
         if(r === except) return;
-        r.classList.remove('crmw-open');
-        var b = r.querySelector('.crmw-fchip');
-        if(b) b.setAttribute('aria-expanded','false');
+        if(r.classList.contains('crmw-open')){
+          r.classList.remove('crmw-open');
+          var b = r.querySelector('.crmw-fchip');
+          if(b) b.setAttribute('aria-expanded','false');
+        }
+        pauseRow(r);
       });
     }
 
-    /* keep popover inside viewport: flip to right-align if it would overflow */
+    /* keep popover inside viewport: flip right if it overflows the right edge,
+       flip up if a bottom-row chip would push it past the viewport bottom */
     function positionPop(row){
       var pop = row.querySelector('.crmw-pop');
       if(!pop) return;
-      pop.classList.remove('crmw-pop-right');
+      pop.classList.remove('crmw-pop-right','crmw-pop-up');
       var rect = pop.getBoundingClientRect();
       if(rect.right > window.innerWidth - 12){
         pop.classList.add('crmw-pop-right');
+      }
+      /* re-measure height, flip up if the downward panel spills below the viewport
+         and there is room above the chip */
+      var chip = row.querySelector('.crmw-fchip');
+      var chipTop = chip ? chip.getBoundingClientRect().top : rect.top;
+      if(rect.bottom > window.innerHeight - 12 && chipTop > rect.height + 24){
+        pop.classList.add('crmw-pop-up');
       }
     }
 
@@ -418,14 +473,18 @@
         if(isOpen){
           row.classList.remove('crmw-open');
           btn.setAttribute('aria-expanded','false');
+          pauseRow(row);
         } else {
           row.classList.add('crmw-open');
           btn.setAttribute('aria-expanded','true');
           positionPop(row);
+          playRow(row);
         }
       });
 
-      row.addEventListener('mouseenter', function(){ positionPop(row); });
+      /* hover reveals via CSS; sync media + positioning here */
+      row.addEventListener('mouseenter', function(){ positionPop(row); playRow(row); });
+      row.addEventListener('mouseleave', function(){ if(!row.classList.contains('crmw-open')) pauseRow(row); });
     });
 
     /* Esc closes any open popover, returns focus to its chip */
@@ -436,6 +495,7 @@
           var b = open.querySelector('.crmw-fchip');
           open.classList.remove('crmw-open');
           if(b){ b.setAttribute('aria-expanded','false'); b.focus(); }
+          pauseRow(open);
         }
       }
     });
